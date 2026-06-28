@@ -5,7 +5,7 @@
 <p align="center">
   <img src="./public/favicon.svg" alt="四时有序" width="80" />
 </p>
-![image-20260619155317744](README.assets/image-20260619155317744-17818556281681.png)
+![image-20260619155317744-17818556281681.png](README.assets/image-20260619155317744-17818556281681.png)
 
 ![image-20260619160614791](README.assets/image-20260619160734382.png)
 
