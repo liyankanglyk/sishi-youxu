@@ -92,7 +92,12 @@ async function handleLogin() {
   justify-content: center;
   position: relative;
   overflow: hidden;
-  background: #f8fafc;
+  background:
+    radial-gradient(ellipse 100% 70% at 0% 0%, rgba(129, 140, 248, 0.35) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 100% 0%, rgba(99, 102, 241, 0.30) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 0% 100%, rgba(199, 210, 254, 0.32) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 100% 100%, rgba(165, 180, 252, 0.26) 0%, transparent 50%),
+    #f8fafc;
 }
 
 /* Background shapes */

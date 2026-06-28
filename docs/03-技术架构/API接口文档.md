@@ -1317,7 +1317,6 @@ Query：`page` / `pageSize` / `userUuid` / `q`（名称模糊搜索）。
 | `GET` | `/` | 服务根信息（无鉴权） |
 | `GET` | `/openapi.json` | OpenAPI 3.1 规范 |
 | `GET` | `/docs` | RapiDoc 文档页 |
-| `GET` | `/redoc` | （保留） |
 | `GET` | `/static/*` | Swagger 静态资源（本地化） |
 
 `/health` 响应：
@@ -1421,7 +1420,6 @@ WS /admin/ws/notifications?token=<ws-ticket>
 | 资源 | 路径 | 说明 |
 | --- | --- | --- |
 | 交互式 API 文档 | `/docs` | RapiDoc，本地 JS/CSS，中文 UI |
-| ReDoc | `/redoc` | （保留） |
 | OpenAPI 规范 | `/openapi.json` | OpenAPI 3.1 JSON 规范 |
 | 健康检查 | `/health` | 无鉴权，DB/Redis 启动期不可用时仍返回 `ok` |
 
@@ -1438,7 +1436,6 @@ WS /admin/ws/notifications?token=<ws-ticket>
 - `GET /`
 - `GET /health`
 - `GET /docs`
-- `GET /redoc`
 - `GET /openapi.json`
 
 ### 用户端 — 认证（15）

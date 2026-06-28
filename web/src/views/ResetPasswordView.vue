@@ -46,6 +46,14 @@ async function handleReset() {
 <template>
   <div class="auth-page">
     <div class="auth-card">
+      <div class="auth-logo">
+        <svg viewBox="0 0 32 32" width="48" height="48" fill="none">
+          <rect x="2" y="2" width="12" height="12" rx="3" fill="#6366f1" opacity="0.9"/>
+          <rect x="18" y="2" width="12" height="12" rx="3" fill="#818cf8" opacity="0.7"/>
+          <rect x="2" y="18" width="12" height="12" rx="3" fill="#a5b4fc" opacity="0.6"/>
+          <rect x="18" y="18" width="12" height="12" rx="3" fill="#c7d2fe" opacity="0.5"/>
+        </svg>
+      </div>
       <h1 class="auth-title">重置密码</h1>
       <p class="auth-subtitle">输入邮件中的重置码和新密码</p>
 
@@ -102,7 +110,12 @@ async function handleReset() {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background: var(--c-gray-50);
+  background:
+    radial-gradient(ellipse 100% 70% at 0% 0%, rgba(129, 140, 248, 0.35) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 100% 0%, rgba(99, 102, 241, 0.30) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 0% 100%, rgba(199, 210, 254, 0.32) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 100% 100%, rgba(165, 180, 252, 0.26) 0%, transparent 50%),
+    var(--c-gray-50);
   padding: 1rem;
 }
 .auth-card {
@@ -113,6 +126,10 @@ async function handleReset() {
   padding: 2.5rem 2rem;
   box-shadow: var(--sh-modal);
   color: var(--c-gray-900);
+}
+.auth-logo {
+  text-align: center;
+  margin-bottom: 0.75rem;
 }
 .auth-title {
   text-align: center;

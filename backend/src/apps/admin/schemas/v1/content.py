@@ -38,6 +38,14 @@ class AdminTaskBatchRequest(BaseModel):
     taskUuids: list[str] = Field(..., min_length=1, max_length=200, description="任务 UUID 列表")
 
 
+class AdminTagCreateRequest(BaseModel):
+    """管理员创建标签请求。"""
+
+    name: str = Field(..., min_length=1, max_length=50, description="标签名称")
+    color: str = Field(default="#6366f1", description="标签颜色 HEX 格式")
+    userUuid: Optional[str] = Field(default=None, description="所属用户 UUID（为空则创建为系统预设标签）")
+
+
 class AdminTagUpdateRequest(BaseModel):
     """更新标签请求。"""
 

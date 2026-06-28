@@ -6,8 +6,10 @@
 --
 -- 包含：
 --   - 超管账号：admin / 123456
---   - 演示账号：xiaoming / demo123
---   - 所有数据均使用 IGNORE 避免覆盖已有数据
+--   - 演示管理员：admin_demo / admin123
+--   - 演示账号：demo / demo123（大三学生场景，含 14 条任务、标签、检查项、通知）
+--   - 审计日志、登录日志、系统公告、用户反馈（演示数据）
+--   - 所有数据均使用 INSERT IGNORE 避免覆盖已有数据
 -- =============================================================================
 
 USE `sishi_youxu`;
@@ -31,7 +33,25 @@ VALUES
      NOW(), NOW());
 
 -- ---------------------------------------------------------------------------
--- 2. 演示账号 (demo / demo123) — 大三学生场景
+-- 2. 演示管理员 (admin_demo / admin123) — 运营/审核场景
+-- ---------------------------------------------------------------------------
+INSERT IGNORE INTO `sishiyouxu_user`
+    (`uuid`, `nickname`, `avatar_url`, `role`, `status`, `locale`, `created_at`, `updated_at`)
+VALUES
+    ('c0000000-0000-0000-0000-000000000001', '运营管理员', NULL, 'admin', 'active', 'zh-CN', NOW(), NOW());
+
+INSERT IGNORE INTO `sishiyouxu_auth_identity`
+    (`uuid`, `user_uuid`, `provider`, `provider_uid`, `credentials`, `created_at`, `updated_at`)
+VALUES
+    ('c0000000-0000-0000-0000-000000000002',
+     'c0000000-0000-0000-0000-000000000001',
+     'password',
+     'admin_demo',
+     '$2b$12$xZE7ORZpF2VEkTdWUFjpKO9cdHVmS.zRrtZofUWHY8EAfGwPkXwLW',
+     NOW(), NOW());
+
+-- ---------------------------------------------------------------------------
+-- 3. 演示账号 (demo / demo123) — 大三学生场景
 -- ---------------------------------------------------------------------------
 INSERT IGNORE INTO `sishiyouxu_user`
     (`uuid`, `nickname`, `role`, `status`, `locale`, `created_at`, `updated_at`)
@@ -49,7 +69,7 @@ VALUES
      NOW(), NOW());
 
 -- ---------------------------------------------------------------------------
--- 3. 演示账号 - 个人标签
+-- 4. 演示账号 - 个人标签
 -- ---------------------------------------------------------------------------
 INSERT IGNORE INTO `sishiyouxu_tag`
     (`uuid`, `user_uuid`, `name`, `color`, `is_preset`, `created_at`, `updated_at`)
@@ -59,7 +79,7 @@ VALUES
     ('b0000000-0000-0000-0000-100000000003', 'b0000000-0000-0000-0000-000000000001', '考研', '#F59E0B', 0, NOW(), NOW());
 
 -- ---------------------------------------------------------------------------
--- 4. 演示账号 - 任务（12 条，覆盖全部象限 + 不同状态）
+-- 5. 演示账号 - 任务（14 条，覆盖全部象限 + 不同状态）
 -- ---------------------------------------------------------------------------
 -- 预设标签 UUID（来自 init_db.sql）:
 --   00000000-0000-0000-0000-000000000001 = 工作
@@ -226,7 +246,7 @@ VALUES
      1, DATE_SUB(NOW(), INTERVAL 1 DAY), 14, 'sent', NOW(), NOW());
 
 -- ---------------------------------------------------------------------------
--- 5. 演示账号 - 任务 ↔ 标签关联
+-- 6. 演示账号 - 任务 ↔ 标签关联
 -- ---------------------------------------------------------------------------
 INSERT IGNORE INTO `sishiyouxu_task_tag`
     (`task_uuid`, `tag_uuid`, `created_at`, `updated_at`)
@@ -255,7 +275,7 @@ VALUES
     ('b0000000-0000-0000-0000-200000000015', 'b0000000-0000-0000-0000-100000000001', NOW(), NOW()); -- 课程
 
 -- ---------------------------------------------------------------------------
--- 6. 演示账号 - 检查项
+-- 7. 演示账号 - 检查项
 -- ---------------------------------------------------------------------------
 INSERT IGNORE INTO `sishiyouxu_task_checklist`
     (`uuid`, `task_uuid`, `title`, `completed`, `sort_order`, `created_at`, `updated_at`)
@@ -300,7 +320,7 @@ VALUES
      '周五', 0, 2, NOW(), NOW());
 
 -- ---------------------------------------------------------------------------
--- 7. 演示账号 - 示例通知
+-- 8. 演示账号 - 示例通知
 -- ---------------------------------------------------------------------------
 INSERT IGNORE INTO `sishiyouxu_notification`
     (`uuid`, `user_uuid`, `kind`, `is_read`, `title`, `body`,
@@ -327,3 +347,214 @@ VALUES
      '用四象限管理你的学习与生活——把精力花在真正重要的事情上。',
      NULL,
      DATE_SUB(NOW(), INTERVAL 7 DAY), DATE_SUB(NOW(), INTERVAL 7 DAY));
+
+-- ---------------------------------------------------------------------------
+-- 9. 管理员操作审计日志（演示数据）
+-- ---------------------------------------------------------------------------
+INSERT IGNORE INTO `sishiyouxu_audit_log`
+    (`uuid`, `user_uuid`, `action`, `resource_type`, `resource_uuid`,
+     `ip_address`, `user_agent`, `detail`, `created_at`)
+VALUES
+    -- 超管操作
+    ('c0000000-0000-0000-0000-300000000001',
+     'a0000000-0000-0000-0000-000000000001', 'user.disable',
+     'user', 'b0000000-0000-0000-0000-000000000001',
+     '192.168.1.100',
+     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36',
+     JSON_OBJECT('reason', '测试禁用操作', 'operator', 'admin'),
+     DATE_SUB(NOW(), INTERVAL 6 HOUR)),
+    ('c0000000-0000-0000-0000-300000000002',
+     'a0000000-0000-0000-0000-000000000001', 'user.enable',
+     'user', 'b0000000-0000-0000-0000-000000000001',
+     '192.168.1.100',
+     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36',
+     JSON_OBJECT('reason', '恢复用户使用', 'operator', 'admin'),
+     DATE_SUB(NOW(), INTERVAL 5 HOUR)),
+    ('c0000000-0000-0000-0000-300000000003',
+     'a0000000-0000-0000-0000-000000000001', 'config.update',
+     'system_config', NULL,
+     '192.168.1.100',
+     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36',
+     JSON_OBJECT('changes', JSON_OBJECT('site.name', '四时有序', 'registration.enabled', 'true')),
+     DATE_SUB(NOW(), INTERVAL 1 DAY)),
+    ('c0000000-0000-0000-0000-300000000004',
+     'a0000000-0000-0000-0000-000000000001', 'announcement.create',
+     'announcement', 'c0000000-0000-0000-0000-500000000001',
+     '192.168.1.100',
+     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36',
+     JSON_OBJECT('title', '系统升级通知', 'type', 'info'),
+     DATE_SUB(NOW(), INTERVAL 2 DAY)),
+    ('c0000000-0000-0000-0000-300000000005',
+     'a0000000-0000-0000-0000-000000000001', 'sensitive_word.add',
+     'sensitive_word', 'c0000000-0000-0000-0000-600000000001',
+     '192.168.1.100',
+     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36',
+     JSON_OBJECT('word', '违规广告词', 'level', 2),
+     DATE_SUB(NOW(), INTERVAL 3 DAY)),
+    -- 演示管理员操作
+    ('c0000000-0000-0000-0000-300000000006',
+     'c0000000-0000-0000-0000-000000000001', 'task.audit',
+     'task', 'b0000000-0000-0000-0000-200000000001',
+     '10.0.0.55',
+     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36',
+     JSON_OBJECT('action', 'review', 'result', 'approved'),
+     DATE_SUB(NOW(), INTERVAL 4 HOUR)),
+    ('c0000000-0000-0000-0000-300000000007',
+     'c0000000-0000-0000-0000-000000000001', 'task.delete',
+     'task', 'b0000000-0000-0000-0000-200000000014',
+     '10.0.0.55',
+     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36',
+     JSON_OBJECT('action', 'soft_delete', 'reason', '内容不当'),
+     DATE_SUB(NOW(), INTERVAL 3 HOUR)),
+    ('c0000000-0000-0000-0000-300000000008',
+     'c0000000-0000-0000-0000-000000000001', 'user.review',
+     'user', 'b0000000-0000-0000-0000-000000000001',
+     '10.0.0.55',
+     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36',
+     JSON_OBJECT('action', 'view_detail', 'tab', 'tasks'),
+     DATE_SUB(NOW(), INTERVAL 2 HOUR)),
+    ('c0000000-0000-0000-0000-300000000009',
+     'c0000000-0000-0000-0000-000000000001', 'feedback.process',
+     'feedback', NULL,
+     '10.0.0.55',
+     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36',
+     JSON_OBJECT('old_status', 'pending', 'new_status', 'processing'),
+     DATE_SUB(NOW(), INTERVAL 1 DAY)),
+    ('c0000000-0000-0000-0000-300000000010',
+     'c0000000-0000-0000-0000-000000000001', 'tag.update',
+     'tag', 'b0000000-0000-0000-0000-100000000001',
+     '10.0.0.55',
+     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36',
+     JSON_OBJECT('changes', JSON_OBJECT('color', '#7C3AED')),
+     DATE_SUB(NOW(), INTERVAL 2 DAY));
+
+-- ---------------------------------------------------------------------------
+-- 10. 登录日志（演示数据）
+-- ---------------------------------------------------------------------------
+INSERT IGNORE INTO `sishiyouxu_login_log`
+    (`uuid`, `user_uuid`, `provider`, `ip_address`, `user_agent`,
+     `login_status`, `fail_reason`, `created_at`)
+VALUES
+    -- 超管登录
+    ('c0000000-0000-0000-0000-400000000001',
+     'a0000000-0000-0000-0000-000000000001', 'password',
+     '192.168.1.100',
+     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/125.0.0.0',
+     'success', NULL,
+     DATE_SUB(NOW(), INTERVAL 1 HOUR)),
+    ('c0000000-0000-0000-0000-400000000002',
+     'a0000000-0000-0000-0000-000000000001', 'password',
+     '192.168.1.100',
+     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/125.0.0.0',
+     'success', NULL,
+     DATE_SUB(NOW(), INTERVAL 1 DAY)),
+    ('c0000000-0000-0000-0000-400000000003',
+     'a0000000-0000-0000-0000-000000000001', 'password',
+     '192.168.1.100',
+     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/125.0.0.0',
+     'success', NULL,
+     DATE_SUB(NOW(), INTERVAL 2 DAY)),
+    -- 演示管理员登录
+    ('c0000000-0000-0000-0000-400000000004',
+     'c0000000-0000-0000-0000-000000000001', 'password',
+     '10.0.0.55',
+     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/125.0.0.0',
+     'success', NULL,
+     DATE_SUB(NOW(), INTERVAL 2 HOUR)),
+    ('c0000000-0000-0000-0000-400000000005',
+     'c0000000-0000-0000-0000-000000000001', 'password',
+     '10.0.0.55',
+     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/125.0.0.0',
+     'success', NULL,
+     DATE_SUB(NOW(), INTERVAL 1 DAY)),
+    ('c0000000-0000-0000-0000-400000000006',
+     'c0000000-0000-0000-0000-000000000001', 'password',
+     '10.0.0.56',
+     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/125.0.0.0',
+     'failed', '密码错误',
+     DATE_SUB(NOW(), INTERVAL 2 DAY)),
+    -- 演示用户登录
+    ('c0000000-0000-0000-0000-400000000007',
+     'b0000000-0000-0000-0000-000000000001', 'password',
+     '172.16.0.10',
+     'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Mobile/15E148',
+     'success', NULL,
+     DATE_SUB(NOW(), INTERVAL 1 HOUR)),
+    ('c0000000-0000-0000-0000-400000000008',
+     'b0000000-0000-0000-0000-000000000001', 'password',
+     '172.16.0.10',
+     'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Mobile/15E148',
+     'success', NULL,
+     DATE_SUB(NOW(), INTERVAL 12 HOUR)),
+    ('c0000000-0000-0000-0000-400000000009',
+     'b0000000-0000-0000-0000-000000000001', 'password',
+     '172.16.0.10',
+     'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Mobile/15E148',
+     'success', NULL,
+     DATE_SUB(NOW(), INTERVAL 1 DAY)),
+    ('c0000000-0000-0000-0000-40000000000a',
+     'b0000000-0000-0000-0000-000000000001', 'password',
+     '172.16.0.22',
+     'Mozilla/5.0 (Linux; Android 14; Pixel 8) Chrome/125.0.0.0 Mobile',
+     'success', NULL,
+     DATE_SUB(NOW(), INTERVAL 2 DAY));
+
+-- ---------------------------------------------------------------------------
+-- 11. 系统公告（演示数据）
+-- ---------------------------------------------------------------------------
+INSERT IGNORE INTO `sishiyouxu_announcement`
+    (`uuid`, `title`, `content`, `type`, `is_pinned`, `is_active`,
+     `start_time`, `end_time`, `created_by`, `created_at`, `updated_at`)
+VALUES
+    ('c0000000-0000-0000-0000-500000000001',
+     '系统升级通知',
+     '系统将于本周六凌晨 2:00-4:00 进行例行维护升级，届时服务将短暂不可用。升级内容包括性能优化和安全补丁更新。给您带来的不便敬请谅解。',
+     'info', 0, 1,
+     DATE_SUB(NOW(), INTERVAL 1 DAY), DATE_ADD(NOW(), INTERVAL 5 DAY),
+     'a0000000-0000-0000-0000-000000000001',
+     DATE_SUB(NOW(), INTERVAL 2 DAY), DATE_SUB(NOW(), INTERVAL 2 DAY)),
+    ('c0000000-0000-0000-0000-500000000002',
+     '欢迎使用四时有序 v0.2.0',
+     '新版本已上线！本次更新：\n\n- ✨ 管理后台新增任务/标签内容管理模块\n- ✨ 用户详情页支持查看任务和标签数据\n- 🐛 修复 IP 黑名单添加/移除未生效的问题\n- 🔧 优化敏感词导入流程\n\n如有问题请在意见反馈中提交。',
+     'info', 1, 1,
+     DATE_SUB(NOW(), INTERVAL 7 DAY), DATE_ADD(NOW(), INTERVAL 23 DAY),
+     'a0000000-0000-0000-0000-000000000001',
+     DATE_SUB(NOW(), INTERVAL 7 DAY), DATE_SUB(NOW(), INTERVAL 7 DAY)),
+    ('c0000000-0000-0000-0000-500000000003',
+     '安全提醒：请及时修改默认密码',
+     '为保障账号安全，提醒所有管理员和用户尽快将默认密码修改为强度更高的个人密码。建议密码至少包含 8 个字符，含大小写字母和数字。',
+     'warning', 0, 1,
+     DATE_SUB(NOW(), INTERVAL 14 DAY), DATE_ADD(NOW(), INTERVAL 16 DAY),
+     'a0000000-0000-0000-0000-000000000001',
+     DATE_SUB(NOW(), INTERVAL 14 DAY), DATE_SUB(NOW(), INTERVAL 14 DAY));
+
+-- ---------------------------------------------------------------------------
+-- 12. 系统反馈（演示数据）
+-- ---------------------------------------------------------------------------
+INSERT IGNORE INTO `sishiyouxu_feedback`
+    (`uuid`, `user_uuid`, `content`, `contact`, `status`,
+     `handled_by`, `handled_at`, `created_at`, `updated_at`)
+VALUES
+    ('c0000000-0000-0000-0000-700000000001',
+     'b0000000-0000-0000-0000-000000000001',
+     '希望增加番茄钟功能，在学习的时候可以专注计时，和四象限结合起来使用体验会更好。',
+     'demo@example.com',
+     'pending',
+     NULL, NULL,
+     DATE_SUB(NOW(), INTERVAL 1 DAY), DATE_SUB(NOW(), INTERVAL 1 DAY)),
+    ('c0000000-0000-0000-0000-700000000002',
+     'b0000000-0000-0000-0000-000000000001',
+     '移动端字体偏小，在手机上拖拽任务卡片时容易误触，希望能优化触屏体验。',
+     NULL,
+     'processing',
+     'c0000000-0000-0000-0000-000000000001',
+     DATE_SUB(NOW(), INTERVAL 2 HOUR),
+     DATE_SUB(NOW(), INTERVAL 2 DAY), DATE_SUB(NOW(), INTERVAL 2 HOUR)),
+    ('c0000000-0000-0000-0000-700000000003',
+     NULL,
+     '界面简洁清爽，四象限的设计和 Things 3 风格很搭，继续加油！如果能支持 iCloud 同步就更好了。',
+     'anonymous@user.com',
+     'resolved',
+     'a0000000-0000-0000-0000-000000000001',
+     DATE_SUB(NOW(), INTERVAL 2 DAY),
+     DATE_SUB(NOW(), INTERVAL 5 DAY), DATE_SUB(NOW(), INTERVAL 2 DAY));

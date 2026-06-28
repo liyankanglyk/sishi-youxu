@@ -48,14 +48,11 @@ pip install -r requirements.txt
 cp .env.example .env
 # 默认配置：MySQL/Redis 都在 127.0.0.1:3306 / 6379，连接失败也允许框架启动
 
-# 3. 初始化数据库
+# 3. 初始化数据库（含管理员账号 + 演示数据）
 mysql -u root -p < scripts/init_db.sql
 mysql -u root -p sishi_youxu < scripts/seed.sql
 
-# 4. 创建默认管理员
-python scripts/init_admin.py        # → admin / 123456
-
-# 5. 启动
+# 4. 启动
 python -m uvicorn src.main:app --reload --port 8000
 ```
 
@@ -63,7 +60,6 @@ python -m uvicorn src.main:app --reload --port 8000
 
 - 健康检查：`http://127.0.0.1:8000/health`
 - API 文档（RapiDoc）：`http://127.0.0.1:8000/docs`
-- ReDoc：`http://127.0.0.1:8000/redoc`
 - OpenAPI Schema：`http://127.0.0.1:8000/openapi.json`
 
 > 启动时 MySQL/Redis 不可用也会继续启动（仅警告），方便先把前端/接口规范跑通。真正用到对应资源的接口在被调用时才会报错。

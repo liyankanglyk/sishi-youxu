@@ -1566,6 +1566,51 @@ class AdminService:
     # Tag Management
     # =========================================================================
 
+    async def create_tag(
+        self,
+        name: str,
+        color: str = "#6366f1",
+        user_uuid: str | None = None,
+        admin_uuid: str = "",
+    ) -> dict[str, Any]:
+        """Create a tag (admin)."""
+        import re as _re
+        name = name.strip()
+        if not name or len(name) > 50:
+            raise ValidationException("标签名称长度必须在 1-50 字符之间", code="VALIDATION_ERROR")
+        if not _re.match(r"^#[0-9a-fA-F]{6}$", color):
+            raise ValidationException("颜色值必须是有效的 HEX 格式", code="VALIDATION_ERROR")
+
+        # Check duplicate name within same scope
+        dup_stmt = select(Tag).where(
+            Tag.name == name,
+            Tag.deleted_at.is_(None),
+        )
+        if user_uuid:
+            dup_stmt = dup_stmt.where(Tag.user_uuid == user_uuid)
+        else:
+            dup_stmt = dup_stmt.where(Tag.is_preset.is_(True))
+        dup = (await self.db.execute(dup_stmt)).scalar_one_or_none()
+        if dup is not None:
+            raise ConflictException("标签名称已存在", code="TAG_NAME_CONFLICT")
+
+        tag = Tag(
+            user_uuid=user_uuid,
+            name=name,
+            color=color,
+            is_preset=user_uuid is None,
+        )
+        self.db.add(tag)
+        await self.db.flush()
+        await self._record_audit(admin_uuid, "tag.create", "tag", tag.uuid, detail={"name": name, "color": color})
+        return {
+            "uuid": tag.uuid,
+            "name": tag.name,
+            "color": tag.color,
+            "isPreset": tag.is_preset,
+            "createdAt": tag.created_at.isoformat() if tag.created_at else None,
+        }
+
     async def list_tags(
         self,
         page: int = 1,

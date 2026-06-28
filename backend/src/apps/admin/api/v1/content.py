@@ -20,6 +20,7 @@ from fastapi import APIRouter, Query, Request
 from src.apps.admin.schemas.v1.content import (
     AdminTaskCreateRequest,
     AdminTaskUpdateRequest,
+    AdminTagCreateRequest,
     AdminTagUpdateRequest,
     AdminTaskBatchRequest,
 )
@@ -141,6 +142,21 @@ async def admin_batch_tasks(
 # =============================================================================
 # Tag Management
 # =============================================================================
+
+
+@router.post("/admin/tags", summary="创建标签（管理员）")
+async def admin_create_tag(
+    body: AdminTagCreateRequest, db: DbSession, admin: RequireAdmin, request: Request
+) -> dict:
+    svc = _service(db, request)
+    result = await svc.create_tag(
+        name=body.name,
+        color=body.color,
+        user_uuid=body.userUuid,
+        admin_uuid=admin["uuid"],
+    )
+    await db.commit()
+    return ok(result)
 
 
 @router.get("/admin/tags", summary="标签列表（管理员）")

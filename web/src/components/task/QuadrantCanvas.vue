@@ -93,15 +93,17 @@ function tasksForQuadrant(qId: string): TaskEx[] {
 }
 
 // ── Stack: tasks at same (u,i) render as a deck — top card fully visible,
-//     cards below peek out with a slight diagonal offset ──
-const STACK_OFFSET_PX = 8 // pixels between successive cards in the stack
+//     cards below peek out with a noticeable diagonal offset ──
+const STACK_OFFSET_PX = 22 // pixels between successive cards in the stack
+const STACK_MAX_OFFSET_PX = 88 // cap total offset to avoid going too far from grid point
 
 // Cache key → per-task {stackIndex, total, z}
 let _stackCacheKey = ''
 const _stackMap = new Map<string, { stackIndex: number; total: number; z: number }>()
 
 function buildStackMap() {
-  const key = store.filteredTasks.map(t => t.uuid).join(',')
+  // Include level info in cache key so moves invalidate correctly
+  const key = store.filteredTasks.map(t => `${t.uuid}:${t.urgencyLevel},${t.importanceLevel}`).join('|')
   if (key === _stackCacheKey) return
   _stackCacheKey = key
   _stackMap.clear()
@@ -166,10 +168,12 @@ function taskStyle(task: TaskEx): Record<string, string> {
   // We express the offset as a calc() that adds px to the percentage position.
   // The wrapper has transform: translate(-50%,-50%), so left/top are the card center.
   // Adding px shifts the center right+down for cards deeper in the stack.
-  const px = Math.min(e.stackIndex * STACK_OFFSET_PX, STACK_OFFSET_PX * 5)
+  const px = Math.min(e.stackIndex * STACK_OFFSET_PX, STACK_MAX_OFFSET_PX)
+  // Cards deeper in the stack get slightly less offset vertically (more fan-like spread)
+  const pxY = Math.min(e.stackIndex * (STACK_OFFSET_PX * 0.6), STACK_MAX_OFFSET_PX * 0.6)
   return {
     left: `calc(${baseLeftPct}% + ${px}px)`,
-    top: `calc(${baseTopPct}% + ${px}px)`,
+    top: `calc(${baseTopPct}% + ${pxY}px)`,
     zIndex: String(Math.max(e.z, drag.uuid === task.uuid ? 999 : 1)),
   }
 }
@@ -360,6 +364,8 @@ function handleTaskClick(task: TaskEx) {
       :class="{
         selected: selectedIds?.includes(task.uuid),
         dragging: drag.uuid === task.uuid,
+        stacked: stackEntry(task).total > 1,
+        'stack-under': stackEntry(task).stackIndex > 0,
       }"
       :style="taskStyle(task)"
       @pointerdown="(e: PointerEvent) => onPointerDown(e, task.uuid)"
@@ -375,7 +381,7 @@ function handleTaskClick(task: TaskEx) {
       />
       <!-- Stack indicator — only on top card, top-left to avoid complete button -->
       <span
-        v-if="stackEntry(task).total > 1 && stackEntry(task).stackIndex === 0 && !drag.active"
+        v-if="stackEntry(task).total > 1 && stackEntry(task).stackIndex === 0"
         class="stack-badge"
       >×{{ stackEntry(task).total }}</span>
       <!-- Drag level badge -->

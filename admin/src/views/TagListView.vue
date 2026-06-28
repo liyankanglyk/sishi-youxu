@@ -33,6 +33,19 @@ const dialogMode = ref<'create' | 'edit'>('create')
 const editingUuid = ref<string | null>(null)
 const formName = ref('')
 const formColor = ref('#6366f1')
+const formUserUuid = ref<string | null>(null)
+const createUserSearchOptions = ref<Array<{ label: string; value: string }>>([])
+const createUserSearchLoading = ref(false)
+
+async function searchCreateUsers(query: string) {
+  if (!query) { createUserSearchOptions.value = []; return }
+  createUserSearchLoading.value = true
+  try {
+    const { data } = await adminApi.searchUsers(query)
+    createUserSearchOptions.value = (data?.items ?? []).map((u: any) => ({ label: `${u.nickname} (${u.uuid.slice(0, 8)}…)`, value: u.uuid }))
+  } catch { createUserSearchOptions.value = [] }
+  finally { createUserSearchLoading.value = false }
+}
 
 // Detail dialog
 const detailVisible = ref(false)
@@ -73,6 +86,8 @@ function openCreate() {
   editingUuid.value = null
   formName.value = ''
   formColor.value = '#6366f1'
+  formUserUuid.value = null
+  createUserSearchOptions.value = []
   dialogVisible.value = true
 }
 
@@ -96,13 +111,14 @@ async function handleSubmit() {
   dialogLoading.value = true
   try {
     if (dialogMode.value === 'create') {
-      // Create via user-level API is not available in admin context,
-      // but admin can list/update/delete. Redirect to user scoped api is not the right path.
-      // Actually adminApi doesn't have create tag — admin can only edit/delete existing tags.
-      // We should show editing dialog but skip create for now.
-      ElMessage.info('管理员暂不支持创建标签，请使用编辑功能')
+      await adminApi.createAdminTag({
+        name: formName.value.trim(),
+        color: formColor.value,
+        userUuid: formUserUuid.value || undefined,
+      })
+      ElMessage.success('已创建')
       dialogVisible.value = false
-      return
+      fetch()
     } else {
       await adminApi.patchAdminTag(editingUuid.value!, {
         name: formName.value.trim(),
@@ -250,12 +266,31 @@ onMounted(fetch)
       :close-on-click-modal="false"
     >
       <el-form label-width="80px" @submit.prevent="handleSubmit">
+        <el-form-item v-if="dialogMode === 'create'" label="所属用户">
+          <el-select
+            v-model="formUserUuid"
+            placeholder="留空则创建为系统预设标签"
+            style="width:100%"
+            filterable
+            remote
+            reserve-keyword
+            clearable
+            :remote-method="searchCreateUsers"
+            :loading="createUserSearchLoading"
+          >
+            <el-option
+              v-for="o in createUserSearchOptions"
+              :key="o.value"
+              :label="o.label"
+              :value="o.value"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="名称" required>
           <el-input
             v-model="formName"
             placeholder="标签名称（1-50 字）"
             maxlength="50"
-            :disabled="dialogMode === 'create'"
           />
         </el-form-item>
         <el-form-item label="颜色">

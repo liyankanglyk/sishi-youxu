@@ -336,6 +336,9 @@ export const adminApi = {
   },
 
   // Content: Tags
+  createAdminTag(data: { name: string; color?: string; userUuid?: string }) {
+    return apiClient.post<AdminTagListItem>('/admin/tags', data)
+  },
   listAdminTags(params?: {
     page?: number; pageSize?: number; userUuid?: string; q?: string
   }) {

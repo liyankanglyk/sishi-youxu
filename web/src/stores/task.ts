@@ -157,6 +157,10 @@ export const useTaskStore = defineStore('task', () => {
     // Always exclude completed tasks from quadrant canvas
     result = result.filter(t => !t.completed)
 
+    if (selectedQuadrant.value) {
+      result = result.filter(t => getQuadrant(t.urgencyLevel, t.importanceLevel) === selectedQuadrant.value)
+    }
+
     if (searchQuery.value.trim()) {
       const q = searchQuery.value.toLowerCase()
       result = result.filter(t => t.title.toLowerCase().includes(q) || (t.note || '').toLowerCase().includes(q))
