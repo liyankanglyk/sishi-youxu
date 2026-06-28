@@ -1,0 +1,143 @@
+# ====================================================
+# 四时有序 (sishi-youxu) — Git Ignore
+# ====================================================
+
+# ---- 通用 ----
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+*.tmp
+*.swp
+*.bak
+*.orig
+*.rej
+
+# ---- 编辑器 / IDE ----
+.idea/
+.vscode/
+*.iml
+*.sublime-project
+*.sublime-workspace
+.history/
+
+# ---- 密钥 / 环境变量 ----
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.crt
+
+# ====================================================
+# 后端 (Python / FastAPI / SQLAlchemy)
+# ====================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# 虚拟环境
+venv/
+.venv/
+env/
+.env-venv/
+ENV/
+.conda/
+
+# 打包 / 构建
+build/
+dist/
+*.egg-info/
+*.egg
+.pyc_cache/
+.mypy_cache/
+.ruff_cache/
+
+# 测试 / 覆盖率
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.cache/
+.tox/
+coverage.xml
+
+# 数据库 / 迁移产物
+*.db
+*.sqlite3
+*.sqlite
+backend/data/
+backend/storage/
+backend/uploads/
+
+# FastAPI / Uvicorn
+*.pid
+*.sock
+
+# Alembic（如果将来引入）
+backend/alembic/versions/__pycache__/
+
+# ====================================================
+# 用户端 (Vue 3 / Vite / TypeScript)
+# ====================================================
+web/node_modules/
+web/dist/
+web/dist-ssr/
+web/.vite/
+web/.cache/
+web/*.local
+web/coverage/
+web/.nyc_output/
+
+# ====================================================
+# 管理后台 (Vue 3 / Element Plus)
+# ====================================================
+admin/node_modules/
+admin/dist/
+admin/dist-ssr/
+admin/.vite/
+admin/.cache/
+admin/*.local
+admin/coverage/
+admin/.nyc_output/
+
+# ====================================================
+# E2E (Playwright)
+# ====================================================
+e2e/node_modules/
+e2e/test-results/
+e2e/playwright-report/
+e2e/blob-report/
+e2e/playwright/.cache/
+
+# ====================================================
+# Capacitor 移动端
+# ====================================================
+capacitor/node_modules/
+capacitor/android/app/build/
+capacitor/android/build/
+capacitor/android/.gradle/
+capacitor/android/local.properties
+capacitor/android/app/release/
+capacitor/android/app/debug/
+capacitor/ios/App/build/
+capacitor/ios/App/Pods/
+capacitor/ios/App/*.xcworkspace/xcuserdata/
+capacitor/ios/App/*.xcodeproj/xcuserdata/
+
+# ====================================================
+# 文档 / 其他
+# ====================================================
+docs/.vitepress/
+docs/.vuepress/dist/
+node_modules/
+
+# ====================================================
+# 部署 / 镜像
+# ====================================================
+*.tar
+*.tar.gz
+*.zip
+.Dockerfile.local

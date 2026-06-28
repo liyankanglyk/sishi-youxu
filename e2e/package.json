@@ -1,0 +1,13 @@
+{
+  "name": "sishi-youxu-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "四时有序 — Playwright E2E 测试（Phase 6 待实现）",
+  "license": "MIT",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.42.0"
+  }
+}

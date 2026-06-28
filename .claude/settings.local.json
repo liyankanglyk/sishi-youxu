@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"from src.models import Base; tables = sorted\\(Base.metadata.tables.keys\\(\\)\\); print\\(f'表数量: {len\\(tables\\)}'\\); [print\\(f'  {t}'\\) for t in tables]\")",
+      "Bash(python -m pytest tests -q --tb=no)"
+    ]
+  }
+}
