@@ -1,0 +1,51 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+.env
+
+# Vite
+.vite
+
+# TypeScript
+*.tsbuildinfo
+
+# Supabase CLI
+supabase/.temp/
+
+# Test coverage
+coverage
+
+# npm pack
+*.tgz
+
+# Capacitor 原生构建产物（保留平台配置文件）
+android/app/build
+android/app/release
+android/build
+android/.gradle
+android/captures
+ios/App/Pods
+ios/App/build
+ios/App/*.xcworkspace
+ios/build
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
