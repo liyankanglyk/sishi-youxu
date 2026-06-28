@@ -1,6 +1,6 @@
-"""Async Redis client + key-builder helpers.
+"""异步 Redis 客户端与 key 构造助手。
 
-Skeleton: a single shared client + a `sishiyouxu:` prefix applied automatically.
+骨架：单一共享客户端 + 自动添加 `sishiyouxu:` 前缀。
 """
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ _redis: redis_async.Redis | None = None
 
 
 def get_redis() -> redis_async.Redis:
-    """Return the shared async Redis client (lazy-initialized).
+    """返回共享的异步 Redis 客户端（延迟初始化）。
 
     兼容老版本 Redis (< 6)：禁用 RESP3 协议（HELLO 3 命令）。
     """
@@ -30,7 +30,7 @@ def get_redis() -> redis_async.Redis:
 
 
 async def close_redis() -> None:
-    """Close the Redis client on shutdown."""
+    """在关闭时关闭 Redis 客户端。"""
     global _redis
     if _redis is not None:
         await _redis.aclose()
@@ -38,7 +38,7 @@ async def close_redis() -> None:
 
 
 def build_key(*parts: str) -> str:
-    """Build a namespaced Redis key, e.g. build_key('rate:login', ip) -> 'sishiyouxu:rate:login:1.2.3.4'."""
+    """构造一个带命名空间的 Redis key，例如 build_key('rate:login', ip) -> 'sishiyouxu:rate:login:1.2.3.4'。"""
     return ":".join((settings.REDIS_KEY_PREFIX, *parts))
 
 
@@ -54,11 +54,11 @@ async def invalidate_ip_blacklist_cache(client: redis_async.Redis | None = None)
 
 
 async def getdel(client: redis_async.Redis, key: str) -> str | None:
-    """Atomically GET a key then DEL it.
+    """原子地 GET 一个 key 然后 DEL 它。
 
-    Compatible with Redis < 6.2 (which lacks the GETDEL command).
-    Uses a Lua script for atomicity.
-    Returns the value, or None if key did not exist.
+    兼容 Redis < 6.2（缺少 GETDEL 命令）。
+    使用 Lua 脚本保证原子性。
+    返回值；若 key 不存在则返回 None。
     """
     lua = (
         "local val = redis.call('GET', KEYS[1]) "

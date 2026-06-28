@@ -10,16 +10,16 @@ const STORAGE_KEYS = {
 }
 
 export const useAuthStore = defineStore('auth', () => {
-  // ── State ──
+  // ── 状态 ──
   const user = ref<UserOut | null>(null)
   const accessToken = ref<string | null>(null)
   const refreshToken = ref<string | null>(null)
 
-  // ── Getters ──
+  // ── 计算属性 ──
   const isAuthenticated = computed(() => !!accessToken.value && !!user.value)
   const userRole = computed(() => user.value?.role ?? 'guest')
 
-  // ── Persistence ──
+  // ── 持久化 ──
   function persistTokens() {
     if (accessToken.value) localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, accessToken.value)
     else localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN)
@@ -42,7 +42,7 @@ export const useAuthStore = defineStore('auth', () => {
       try {
         user.value = JSON.parse(u)
       } catch {
-        // corrupted data, ignore
+        // 数据损坏，忽略
       }
     }
   }
@@ -56,14 +56,14 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem(STORAGE_KEYS.USER)
   }
 
-  // ── Actions ──
+  // ── 操作方法 ──
   async function login(provider: string, payload: Record<string, unknown>) {
     const { data } = await authApi.login(provider, payload)
     user.value = data.user
     accessToken.value = data.access_token
     refreshToken.value = data.refresh_token
     persistTokens()
-    // Persist to Dexie for offline access
+    // 持久化到 Dexie 以便离线访问
     try {
       await db.authSession.put({
         key: 'current',
@@ -72,7 +72,7 @@ export const useAuthStore = defineStore('auth', () => {
         user: data.user as unknown as Record<string, unknown>,
         expiresAt: new Date(Date.now() + data.expires_in * 1000).toISOString(),
       })
-    } catch { /* Dexie may not be open yet */ }
+    } catch { /* Dexie 可能尚未打开 */ }
     return data
   }
 
@@ -100,7 +100,7 @@ export const useAuthStore = defineStore('auth', () => {
         await authApi.logout(refreshToken.value)
       }
     } catch {
-      // Ignore errors during logout
+      // 忽略登出过程中的错误
     } finally {
       clearAuth()
     }
@@ -117,7 +117,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function changePassword(oldPassword: string, newPassword: string) {
     await authApi.changePassword(oldPassword, newPassword)
-    // Force re-login: clear tokens so user must sign in again
+    // 强制重新登录：清空 token，使用户必须再次登录
     clearAuth()
   }
 

@@ -1,6 +1,6 @@
-"""Admin service — Phase 1 implementation.
+"""管理后台 service —— Phase 1 实现。
 
-Covers: admin auth, user CRUD, dashboard, audit logs, feedback, system config.
+涵盖：管理员认证、用户 CRUD、仪表盘、审计日志、反馈、系统配置。
 """
 
 from __future__ import annotations
@@ -50,20 +50,20 @@ logger = get_logger(__name__)
 
 
 class AdminService:
-    """Aggregates all admin-side business logic."""
+    """聚合所有管理后台侧的业务逻辑。"""
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
-        # Set by route layer before calling audit-logged methods
+        # 由路由层在调用审计方法之前设置
         self._request_ip: str | None = None
         self._request_ua: str | None = None
 
     # =========================================================================
-    # Auth
+    # 认证
     # =========================================================================
 
     async def login(self, username: str, password: str) -> dict[str, Any]:
-        """Admin login: password provider, role must be admin or super_admin."""
+        """管理员登录：使用密码登录方式，角色必须是 admin 或 super_admin。"""
         username = (username or "").strip()
         if not username or not password:
             raise ValidationException(
@@ -119,7 +119,7 @@ class AdminService:
 
         tokens = await self._issue_token_pair(user)
         user_out = self._user_to_out(user)
-        # Query permissions for this user's role
+        # 查询该用户角色对应的权限
         perm_stmt = select(AdminPermission.permission).where(
             AdminPermission.role == user.role
         )
@@ -141,7 +141,7 @@ class AdminService:
         }
 
     async def refresh(self, refresh_token_str: str) -> dict[str, Any]:
-        """Rotate admin refresh token."""
+        """轮换管理员 refresh token。"""
         record = await self._resolve_refresh_token(refresh_token_str)
         user = await self._get_user(record.user_uuid)
         if user is None:
@@ -155,7 +155,7 @@ class AdminService:
         return await self._issue_token_pair(user)
 
     async def logout(self, refresh_token_str: str) -> dict[str, Any]:
-        """Idempotent logout."""
+        """幂等的登出操作。"""
         try:
             record = await self._resolve_refresh_token(refresh_token_str)
             record.revoked_at = datetime.utcnow()
@@ -165,7 +165,7 @@ class AdminService:
             return {"revokedCount": 0}
 
     # =========================================================================
-    # User Management
+    # 用户管理
     # =========================================================================
 
     async def list_users(
@@ -178,7 +178,7 @@ class AdminService:
         start_time: str | None = None,
         end_time: str | None = None,
     ) -> dict[str, Any]:
-        """Paginated user list with filters."""
+        """带筛选条件的用户分页列表。"""
         stmt = select(User).where(User.deleted_at.is_(None))
 
         if keyword:
@@ -192,11 +192,11 @@ class AdminService:
         if end_time:
             stmt = stmt.where(User.created_at <= end_time)
 
-        # Count total
+        # 统计总数
         count_stmt = select(func.count()).select_from(stmt.subquery())
         total = (await self.db.execute(count_stmt)).scalar() or 0
 
-        # Paginate
+        # 分页
         stmt = stmt.order_by(User.created_at.desc()).limit(page_size).offset((page - 1) * page_size)
         rows = (await self.db.execute(stmt)).scalars().all()
 
@@ -212,12 +212,12 @@ class AdminService:
         }
 
     async def get_user(self, uuid: str) -> dict[str, Any]:
-        """User detail with task stats and auth identities."""
+        """用户详情，含任务统计与认证身份。"""
         user = await self._get_user(uuid)
         if user is None:
             raise NotFoundException("用户不存在", code="USER_NOT_FOUND")
 
-        # Task counts
+        # 任务计数
         task_total_stmt = select(func.count(Task.uuid)).where(
             Task.user_uuid == uuid, Task.deleted_at.is_(None)
         )
@@ -228,7 +228,7 @@ class AdminService:
         )
         task_completed = (await self.db.execute(completed_stmt)).scalar() or 0
 
-        # Auth identities
+        # 认证身份
         identity_stmt = select(AuthIdentity).where(
             AuthIdentity.user_uuid == uuid,
             AuthIdentity.deleted_at.is_(None),
@@ -286,7 +286,7 @@ class AdminService:
         revoked = await self._revoke_all_refresh_tokens(uuid)
 
         # 在 Redis 中设置 force-logout 时间戳，使该用户的 access token 立即失效
-        # TTL = access token 有效期，过后自动清理
+        # TTL = access token 有效期，过期后自动清理
         try:
             from src.core.config import settings
             from src.core.redis import build_key, get_redis
@@ -394,13 +394,13 @@ class AdminService:
                     await self.enable_user(uid, admin_uuid)
                 affected.append(uid)
             except Exception:
-                pass  # skip not-found users in batch
+                pass  # 批量操作中跳过未找到的用户
 
         await self._record_audit(admin_uuid, f"user.batch_{action}", "user", "", detail={"uuids": uuids, "affected": affected})
         return {"affected": len(affected), "uuids": affected}
 
     async def export_users(self) -> str:
-        """Export all users as CSV string."""
+        """导出所有用户为 CSV 字符串。"""
         stmt = select(User).where(User.deleted_at.is_(None)).order_by(User.created_at.desc())
         rows = (await self.db.execute(stmt)).scalars().all()
 
@@ -419,11 +419,11 @@ class AdminService:
         return output.getvalue()
 
     # =========================================================================
-    # Dashboard
+    # 仪表盘
     # =========================================================================
 
     async def get_stats(self) -> dict[str, Any]:
-        """Aggregate dashboard statistics."""
+        """聚合仪表盘统计数据。"""
         now = datetime.utcnow()
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
@@ -449,7 +449,7 @@ class AdminService:
             )
         )).scalar() or 0
 
-        # Quadrant distribution (urgency_level / importance_level split at 0)
+        # 四象限分布（以 0 为分界划分 urgency_level / importance_level）
         q1 = (await self.db.execute(
             select(func.count(Task.uuid)).where(
                 Task.urgency_level > 0, Task.importance_level > 0, Task.deleted_at.is_(None)
@@ -480,7 +480,7 @@ class AdminService:
         }
 
     async def get_chart(self, metric: str) -> dict[str, Any]:
-        """Time-series data for a given metric (last 7 days)."""
+        """指定指标最近 7 天的时序数据。"""
         now = datetime.utcnow()
         days = []
         for i in range(6, -1, -1):
@@ -515,11 +515,11 @@ class AdminService:
         return {"metric": metric, "data": data}
 
     # =========================================================================
-    # Audit Logs
+    # 审计日志
     # =========================================================================
 
     # -----------------------------------------------------------------
-    # Audit action Chinese labels
+    # 审计 action 的中文标签
     # -----------------------------------------------------------------
     _ACTION_LABELS: dict[str, str] = {
         "user.update": "更新用户",
@@ -569,7 +569,7 @@ class AdminService:
         stmt = stmt.order_by(AuditLog.created_at.desc()).limit(page_size).offset((page - 1) * page_size)
         rows = (await self.db.execute(stmt)).scalars().all()
 
-        # Bulk-resolve nicknames for the operator UUIDs
+        # 批量解析操作者 UUID 对应的昵称
         user_uuids = {r.user_uuid for r in rows if r.user_uuid}
         nicknames: dict[str, str] = {}
         if user_uuids:
@@ -602,7 +602,7 @@ class AdminService:
         if row is None:
             raise NotFoundException("审计日志不存在", code="NOT_FOUND")
 
-        # Resolve operator nickname
+        # 解析操作者昵称
         nickname: str | None = None
         if row.user_uuid:
             user_row = (await self.db.execute(
@@ -654,10 +654,10 @@ class AdminService:
         login_status: LoginStatus,
         fail_reason: str | None = None,
     ) -> None:
-        """Record a login attempt (success or failure) with IP / UA captured from the request.
+        """记录一次登录尝试（成功或失败），从请求中捕获 IP / UA。
 
-        Uses a synchronous connection to ensure the log is persisted even when
-        the parent async transaction is rolled back due to an auth error."""
+        使用同步连接以确保日志写入，即使父级异步事务因认证错误而回滚。
+        """
         from uuid import uuid4
 
         from sqlalchemy import create_engine
@@ -687,7 +687,7 @@ class AdminService:
         engine.dispose()
 
     # =========================================================================
-    # Feedback
+    # 反馈
     # =========================================================================
 
     async def list_feedback(
@@ -739,17 +739,17 @@ class AdminService:
         }
 
     # =========================================================================
-    # System Config
+    # 系统配置
     # =========================================================================
 
     async def get_config(self) -> dict[str, Any]:
-        """Return all system config as a flat dict."""
+        """将所有系统配置以扁平 dict 形式返回。"""
         stmt = select(SystemConfig)
         rows = (await self.db.execute(stmt)).scalars().all()
         return {r.key: r.value for r in rows}
 
     async def update_config(self, patch: dict[str, Any], admin_uuid: str = "") -> dict[str, Any]:
-        """Upsert system config keys."""
+        """插入或更新系统配置键。"""
         updated = []
         for key, value in patch.items():
             stmt = select(SystemConfig).where(SystemConfig.key == key)
@@ -765,7 +765,7 @@ class AdminService:
         return {"updated_keys": updated, "updatedAt": datetime.utcnow().isoformat()}
 
     # =========================================================================
-    # Login Logs (Phase 4)
+    # 登录日志（Phase 4）
     # =========================================================================
 
     async def list_login_logs(
@@ -807,7 +807,7 @@ class AdminService:
         }
 
     # =========================================================================
-    # Sensitive Words (Phase 4)
+    # 敏感词（Phase 4）
     # =========================================================================
 
     async def list_sensitive_words(
@@ -918,7 +918,7 @@ class AdminService:
         return {"imported": imported, "skipped": skipped}
 
     # =========================================================================
-    # IP Blacklist (Phase 4)
+    # IP 黑名单（Phase 4）
     # =========================================================================
 
     async def list_ip_blacklist(
@@ -989,7 +989,7 @@ class AdminService:
         await self.db.flush()
 
     # =========================================================================
-    # Announcements (Phase 4)
+    # 公告（Phase 4）
     # =========================================================================
 
     async def list_announcements(
@@ -1052,7 +1052,7 @@ class AdminService:
         self.db.add(ann)
         await self.db.flush()
 
-        # Fan-out: create a notification for every active user
+        # 扇出：为每个活跃用户创建一条通知
         user_uuids = (
             await self.db.execute(
                 select(User.uuid).where(
@@ -1157,7 +1157,7 @@ class AdminService:
         await self._record_audit(admin_uuid, "announcement.delete", "announcement", uuid)
 
     # =========================================================================
-    # Content Management (Tasks & Tags)
+    # 内容管理（任务 & 标签）
     # =========================================================================
 
     async def list_tasks(
@@ -1171,7 +1171,7 @@ class AdminService:
         start_time: str | None = None,
         end_time: str | None = None,
     ) -> dict[str, Any]:
-        """Admin-visible task list with filters."""
+        """管理员可见的带筛选条件的任务列表。"""
         stmt = select(Task).where(Task.deleted_at.is_(None))
 
         if user_uuid:
@@ -1206,7 +1206,7 @@ class AdminService:
         stmt = stmt.limit(page_size).offset((page - 1) * page_size)
         rows = (await self.db.execute(stmt)).scalars().all()
 
-        # Enrich with user info and tags
+        # 补充用户信息和标签
         user_ids = {t.user_uuid for t in rows}
         users_stmt = select(User).where(User.uuid.in_(user_ids))
         users_rows = (await self.db.execute(users_stmt)).scalars().all()
@@ -1240,7 +1240,7 @@ class AdminService:
         }
 
     async def get_task(self, uuid: str) -> dict[str, Any]:
-        """Get task detail with full tags, checklist, and user info."""
+        """获取任务详情，含完整的标签、检查项和用户信息。"""
         stmt = select(Task).where(Task.uuid == uuid, Task.deleted_at.is_(None))
         task = (await self.db.execute(stmt)).scalar_one_or_none()
         if task is None:
@@ -1286,7 +1286,7 @@ class AdminService:
         }
 
     async def delete_task(self, uuid: str, admin_uuid: str = "") -> None:
-        """Soft-delete a task (admin)."""
+        """软删除一个任务（管理员操作）。"""
         stmt = select(Task).where(Task.uuid == uuid, Task.deleted_at.is_(None))
         task = (await self.db.execute(stmt)).scalar_one_or_none()
         if task is None:
@@ -1301,7 +1301,7 @@ class AdminService:
         task_uuids: list[str],
         admin_uuid: str = "",
     ) -> dict[str, Any]:
-        """Batch delete/restore tasks (admin)."""
+        """批量删除 / 恢复任务（管理员操作）。"""
         if action not in {"delete", "restore"}:
             raise ValidationException(f"不支持的批量操作: {action}", code="VALIDATION_ERROR")
 
@@ -1336,8 +1336,8 @@ class AdminService:
         note: str | None = None,
         tag_uuids: list[str] | None = None,
     ) -> dict[str, Any]:
-        """Admin creates a task for a specific user."""
-        # Validate user exists
+        """管理员为指定用户创建任务。"""
+        # 校验用户存在
         user = await self._get_user(user_uuid)
         if user is None:
             raise NotFoundException("用户不存在", code="USER_NOT_FOUND")
@@ -1384,7 +1384,7 @@ class AdminService:
         completed: bool | None = None,
         tag_uuids: list[str] | None = None,
     ) -> dict[str, Any]:
-        """Admin updates a task (partial)."""
+        """管理员部分更新任务。"""
         stmt = select(Task).where(Task.uuid == uuid, Task.deleted_at.is_(None))
         task = (await self.db.execute(stmt)).scalar_one_or_none()
         if task is None:
@@ -1446,12 +1446,12 @@ class AdminService:
 
     async def _sync_task_tags(self, task_uuid: str, tag_uuids: list[str]) -> None:
         """删除旧关联，创建新关联。"""
-        # Hard-delete existing tag associations (composite PK + no soft-delete column)
+        # 硬删除已有的标签关联（复合主键 + 无软删除列）
         await self.db.execute(
             delete(TaskTag).where(TaskTag.task_uuid == task_uuid)
         )
 
-        # Create new associations
+        # 创建新关联
         for tag_uuid in tag_uuids:
             tt = TaskTag(task_uuid=task_uuid, tag_uuid=tag_uuid)
             self.db.add(tt)
@@ -1465,7 +1465,7 @@ class AdminService:
         quadrant: int | None = None,
         completed: bool | None = None,
     ) -> dict[str, Any]:
-        """List tasks for a specific user (admin view)."""
+        """列出指定用户的任务（管理员视图）。"""
         user = await self._get_user(user_uuid)
         if user is None:
             raise NotFoundException("用户不存在", code="USER_NOT_FOUND")
@@ -1525,7 +1525,7 @@ class AdminService:
         page: int = 1,
         page_size: int = 20,
     ) -> dict[str, Any]:
-        """List tags for a specific user (admin view)."""
+        """列出指定用户的标签（管理员视图）。"""
         user = await self._get_user(user_uuid)
         if user is None:
             raise NotFoundException("用户不存在", code="USER_NOT_FOUND")
@@ -1563,7 +1563,7 @@ class AdminService:
         }
 
     # =========================================================================
-    # Tag Management
+    # 标签管理
     # =========================================================================
 
     async def create_tag(
@@ -1573,7 +1573,7 @@ class AdminService:
         user_uuid: str | None = None,
         admin_uuid: str = "",
     ) -> dict[str, Any]:
-        """Create a tag (admin)."""
+        """创建一个标签（管理员操作）。"""
         import re as _re
         name = name.strip()
         if not name or len(name) > 50:
@@ -1581,7 +1581,7 @@ class AdminService:
         if not _re.match(r"^#[0-9a-fA-F]{6}$", color):
             raise ValidationException("颜色值必须是有效的 HEX 格式", code="VALIDATION_ERROR")
 
-        # Check duplicate name within same scope
+        # 在同一作用域内检查重名
         dup_stmt = select(Tag).where(
             Tag.name == name,
             Tag.deleted_at.is_(None),
@@ -1618,7 +1618,7 @@ class AdminService:
         user_uuid: str | None = None,
         q: str | None = None,
     ) -> dict[str, Any]:
-        """Admin-visible tag list with filters."""
+        """管理员可见的带筛选条件的标签列表。"""
         stmt = select(Tag).where(Tag.deleted_at.is_(None))
 
         if user_uuid:
@@ -1660,20 +1660,20 @@ class AdminService:
         }
 
     async def get_tag(self, uuid: str) -> dict[str, Any]:
-        """Get tag detail with task count and users list."""
+        """获取标签详情，含任务计数和使用者列表。"""
         stmt = select(Tag).where(Tag.uuid == uuid, Tag.deleted_at.is_(None))
         tag = (await self.db.execute(stmt)).scalar_one_or_none()
         if tag is None:
             raise NotFoundException("标签不存在", code="TAG_NOT_FOUND")
 
-        # Task count
+        # 任务计数
         tc_stmt = select(func.count(TaskTag.task_uuid)).where(
             TaskTag.tag_uuid == uuid,
         )
         tc = (await self.db.execute(tc_stmt)).scalar() or 0
 
-        # Users using this tag
-        # More direct: find distinct user_uuids from TaskTag joined with Task
+        # 使用该标签的用户
+        # 更直接的做法：从 TaskTag 关联 Task 找到去重的 user_uuid
         subq = select(Task.user_uuid).join(
             TaskTag, TaskTag.task_uuid == Task.uuid
         ).where(
@@ -1702,7 +1702,7 @@ class AdminService:
         color: str | None = None,
         admin_uuid: str = "",
     ) -> dict[str, Any]:
-        """Update a tag (admin)."""
+        """更新标签（管理员操作）。"""
         stmt = select(Tag).where(Tag.uuid == uuid, Tag.deleted_at.is_(None))
         tag = (await self.db.execute(stmt)).scalar_one_or_none()
         if tag is None:
@@ -1748,13 +1748,13 @@ class AdminService:
         return {"uuid": tag.uuid, "name": tag.name, "color": tag.color}
 
     async def delete_tag(self, uuid: str, admin_uuid: str = "") -> None:
-        """Soft-delete a tag and hard-delete its TaskTag associations (admin)."""
+        """软删除一个标签，并硬删除其 TaskTag 关联（管理员操作）。"""
         stmt = select(Tag).where(Tag.uuid == uuid, Tag.deleted_at.is_(None))
         tag = (await self.db.execute(stmt)).scalar_one_or_none()
         if tag is None:
             raise NotFoundException("标签不存在", code="TAG_NOT_FOUND")
 
-        # Hard-delete all TaskTag associations for this tag
+        # 硬删除该标签的所有 TaskTag 关联
         await self.db.execute(
             delete(TaskTag).where(TaskTag.tag_uuid == uuid)
         )
@@ -1764,7 +1764,7 @@ class AdminService:
         await self._record_audit(admin_uuid, "tag.delete", "tag", uuid)
 
     # =========================================================================
-    # Internal helpers
+    # 内部辅助方法
     # =========================================================================
 
     async def _get_user(self, uuid: str) -> User | None:

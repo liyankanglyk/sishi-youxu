@@ -13,7 +13,7 @@ async function handleLogout() {
 
 <template>
   <el-container class="admin-layout">
-    <!-- Sidebar -->
+    <!-- 侧边栏 -->
     <el-aside width="232px" class="sidebar">
       <div class="sidebar-brand">
         <div class="brand-icon">
@@ -118,7 +118,7 @@ async function handleLogout() {
       </div>
     </el-aside>
 
-    <!-- Main -->
+    <!-- 主区域 -->
     <el-container class="main-area">
       <el-header height="56px" class="top-header">
         <div class="header-breadcrumb">
@@ -149,7 +149,7 @@ async function handleLogout() {
   display: flex;
 }
 
-/* ===== Sidebar ===== */
+/* ===== 侧边栏 ===== */
 .sidebar {
   background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
   display: flex;
@@ -191,7 +191,7 @@ async function handleLogout() {
   letter-spacing: 0.05em;
 }
 
-/* ===== Menu ===== */
+/* ===== 菜单 ===== */
 .sidebar-menu {
   flex: 1;
   border-right: none !important;
@@ -232,7 +232,7 @@ async function handleLogout() {
   color: #a5b4fc;
 }
 
-/* Sub-menu children */
+/* 子菜单项 */
 .sidebar-menu :deep(.el-sub-menu .el-menu) {
   background: transparent !important;
   padding: 2px 0;
@@ -251,7 +251,7 @@ async function handleLogout() {
   color: #c7d2fe !important;
 }
 
-/* ===== Sidebar Footer ===== */
+/* ===== 侧边栏底部 ===== */
 .sidebar-footer {
   padding: 12px 16px;
   border-top: 1px solid rgba(255,255,255,0.06);
@@ -290,7 +290,7 @@ async function handleLogout() {
   color: #64748b;
 }
 
-/* ===== Main Area ===== */
+/* ===== 主区域 ===== */
 .main-area {
   flex: 1;
   display: flex;
@@ -298,7 +298,7 @@ async function handleLogout() {
   min-width: 0;
 }
 
-/* ===== Top Header ===== */
+/* ===== 顶部头部 ===== */
 .top-header {
   background: #fff;
   border-bottom: 1px solid var(--color-border);
@@ -342,7 +342,7 @@ async function handleLogout() {
   color: #ef4444 !important;
 }
 
-/* ===== Main Content ===== */
+/* ===== 主内容区 ===== */
 .main-content {
   background: #f1f5f9;
   padding: 24px;

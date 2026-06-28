@@ -13,7 +13,7 @@ const isLoginPage = computed(() => route.name === 'adminLogin')
 </template>
 
 <style>
-/* ===== Reset ===== */
+/* ===== 重置样式 ===== */
 *,
 *::before,
 *::after {
@@ -22,7 +22,7 @@ const isLoginPage = computed(() => route.name === 'adminLogin')
   padding: 0;
 }
 
-/* ===== Design Tokens ===== */
+/* ===== 设计令牌 ===== */
 :root {
   --font-sans: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
   --font-mono: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, monospace;
@@ -60,7 +60,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ===== Scrollbar ===== */
+/* ===== 滚动条 ===== */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -76,9 +76,9 @@ body {
   background: #94a3b8;
 }
 
-/* ===== Element Plus Global Overrides ===== */
+/* ===== Element Plus 全局样式覆盖 ===== */
 
-/* Card */
+/* 卡片 */
 .el-card {
   border-radius: var(--radius-md) !important;
   border: 1px solid var(--color-border) !important;
@@ -99,7 +99,7 @@ body {
   padding: 20px !important;
 }
 
-/* Table */
+/* 表格 */
 .el-table {
   border-radius: var(--radius-md);
   overflow: hidden;
@@ -121,7 +121,7 @@ body {
   background: #fafbfc;
 }
 
-/* Button */
+/* 按钮 */
 .el-button {
   border-radius: var(--radius-sm) !important;
   font-weight: 500 !important;
@@ -137,7 +137,7 @@ body {
   transform: scale(0.97);
 }
 
-/* Input */
+/* 输入框 */
 .el-input__wrapper {
   border-radius: var(--radius-sm) !important;
   box-shadow: 0 0 0 1px var(--color-border) inset !important;
@@ -154,19 +154,19 @@ body {
   border-radius: var(--radius-sm) !important;
 }
 
-/* Select */
+/* 下拉选择 */
 .el-select .el-input__wrapper {
   border-radius: var(--radius-sm) !important;
 }
 
-/* Tag */
+/* 标签 */
 .el-tag {
   border-radius: 4px !important;
   font-weight: 500 !important;
   letter-spacing: 0.01em;
 }
 
-/* Pagination */
+/* 分页 */
 .el-pagination {
   --el-pagination-button-bg-color: var(--color-surface);
 }
@@ -174,7 +174,7 @@ body {
   border-radius: var(--radius-sm) !important;
 }
 
-/* Dialog */
+/* 对话框 */
 .el-dialog {
   border-radius: var(--radius-lg) !important;
   overflow: hidden;
@@ -191,33 +191,33 @@ body {
   border-top: 1px solid var(--color-border);
 }
 
-/* Message Box */
+/* 消息弹窗 */
 .el-message-box {
   border-radius: var(--radius-lg) !important;
 }
 
-/* Alert */
+/* 警告提示 */
 .el-alert {
   border-radius: var(--radius-sm) !important;
 }
 
-/* Divider */
+/* 分割线 */
 .el-divider__text {
   font-weight: 600;
   color: var(--color-text-secondary);
 }
 
-/* Switch */
+/* 开关 */
 .el-switch {
   --el-switch-on-color: var(--color-primary);
 }
 
-/* Radio Button */
+/* 单选按钮 */
 .el-radio-button__inner {
   transition: all var(--transition-fast);
 }
 
-/* Statistic */
+/* 统计数值 */
 .el-statistic__head {
   color: var(--color-text-secondary) !important;
   font-size: 13px !important;
@@ -228,9 +228,9 @@ body {
   font-weight: 700 !important;
 }
 
-/* Menu overrides handled in AdminLayout scoped */
+/* 菜单样式覆盖在 AdminLayout 的 scoped 中处理 */
 
-/* Date Picker */
+/* 日期选择器 */
 .el-date-editor {
   --el-date-editor-daterange-width: 260px;
 }

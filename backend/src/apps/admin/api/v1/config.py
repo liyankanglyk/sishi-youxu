@@ -1,6 +1,6 @@
-"""Admin system-config and Phase 4 endpoints.
+"""管理后台系统配置及 Phase 4 端点。
 
-Sensitive words, IP blacklist, and announcements are now fully implemented (Phase 4).
+敏感词、IP 黑名单、公告现已在 Phase 4 完整实现。
 """
 from __future__ import annotations
 
@@ -50,7 +50,7 @@ async def update_config(
     return ok(result)
 
 
-# ── Sensitive words (Phase 4: real implementation) ──
+# ── 敏感词（Phase 4：真实实现）──
 sensitive_word_router = APIRouter(prefix="/admin/sensitive-words", tags=["admin-content"])
 
 
@@ -105,7 +105,7 @@ async def import_sensitive_words(
     _admin: RequireAdmin,
     words: str = Form(default=""),
 ) -> dict:
-    """支持通过 form field 'words' 直接传文本（每行一个敏感词）。"""
+    """支持通过 form 字段 'words' 直接传文本（每行一个敏感词）。"""
     svc = AdminService(db)
     text = words.strip()
     if not text:
@@ -115,7 +115,7 @@ async def import_sensitive_words(
     return ok(result)
 
 
-# ── Security / IP blacklist (Phase 4: real implementation) ──
+# ── 安全 / IP 黑名单（Phase 4：真实实现）──
 security_router = APIRouter(prefix="/admin/security", tags=["admin-security"])
 
 
@@ -170,7 +170,7 @@ async def remove_blacklist(
     return ok({"deleted": True})
 
 
-# ── Announcements (Phase 4: real implementation) ──
+# ── 公告（Phase 4：真实实现）──
 announcement_router = APIRouter(prefix="/admin/announcements", tags=["admin-announcements"])
 
 

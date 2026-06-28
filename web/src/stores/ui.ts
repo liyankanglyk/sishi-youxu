@@ -4,7 +4,7 @@ import { ref, watch } from 'vue'
 type Theme = 'light' | 'dark' | 'system'
 
 export const useUiStore = defineStore('ui', () => {
-  // ── Theme ──
+  // ── 主题 ──
   const theme = ref<Theme>((localStorage.getItem('sishi-theme') as Theme) || 'system')
   const systemDark = ref(window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false)
 
@@ -29,7 +29,7 @@ export const useUiStore = defineStore('ui', () => {
     theme.value = theme.value === 'dark' ? 'light' : 'dark'
   }
 
-  // ── Mobile detection ──
+  // ── 移动端检测 ──
   const isMobile = ref(window.matchMedia?.('(max-width: 767px)').matches ?? false)
 
   if (window.matchMedia) {
@@ -44,7 +44,7 @@ export const useUiStore = defineStore('ui', () => {
     })
   }
 
-  // ── Desktop sidebar — left task list ──
+  // ── 桌面侧边栏 —— 左侧任务列表 ──
   const leftSidebarWidth = ref(
     Number(localStorage.getItem('sishi-sidebar-width') || 260),
   )
@@ -57,7 +57,7 @@ export const useUiStore = defineStore('ui', () => {
     localStorage.setItem('sishi-sidebar-width', String(w))
   })
 
-  // ── Desktop sidebar — right stats panel ──
+  // ── 桌面侧边栏 —— 右侧统计面板 ──
   const showStatsPanel = ref(
     localStorage.getItem('sishi-show-stats') !== 'false',
   )
@@ -70,7 +70,7 @@ export const useUiStore = defineStore('ui', () => {
     localStorage.setItem('sishi-show-stats', String(v))
   })
 
-  // ── Mobile drawers ──
+  // ── 移动端抽屉 ──
   const showMobileTaskList = ref(false)
   const showMobileStatsPanel = ref(false)
 
@@ -82,26 +82,26 @@ export const useUiStore = defineStore('ui', () => {
   function closeMobileStatsPanel() { showMobileStatsPanel.value = false }
   function toggleMobileStatsPanel() { showMobileStatsPanel.value = !showMobileStatsPanel.value }
 
-  // ── Mobile overflow menu ──
+  // ── 移动端溢出菜单 ──
   const showMobileOverflowMenu = ref(false)
   function toggleMobileOverflowMenu() { showMobileOverflowMenu.value = !showMobileOverflowMenu.value }
   function closeMobileOverflowMenu() { showMobileOverflowMenu.value = false }
 
-  // ── Mobile search overlay ──
+  // ── 移动端搜索浮层 ──
   const showMobileSearch = ref(false)
 
-  // ── Import trigger ──
+  // ── 导入触发器 ──
   const importTrigger = ref(0)
   function triggerImport() { importTrigger.value++ }
 
-  // ── Notification preference ──
+  // ── 通知偏好 ──
   const notificationsEnabled = ref(localStorage.getItem('sishi-notifications') === 'true')
   function setNotificationsEnabled(enabled: boolean) {
     notificationsEnabled.value = enabled
     localStorage.setItem('sishi-notifications', String(enabled))
   }
 
-  // Initialize
+  // 初始化
   applyTheme()
 
   return {

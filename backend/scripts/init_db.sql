@@ -10,7 +10,7 @@
 --   - sishiyouxu_auth_identity.provider ENUM 包含 'wechat'，供微信小程序登录
 --   - sishiyouxu_notification 新增 `template_id` 列 + 'wechat_subscribe' kind
 --   - sishiyouxu_admin_permission 仅保留 (role, permission) 联合主键
---   - 所有核心业务表含 deleted_at 软删除标记；append-only 表（audit/login）不含
+--   - 所有核心业务表含 deleted_at 软删除标记；仅追加表（audit/login）不含
 --
 -- 使用方法：
 --   mysql -u root -p < scripts/init_db.sql
@@ -220,7 +220,7 @@ CREATE TABLE `sishiyouxu_feedback` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户反馈';
 
 -- ---------------------------------------------------------------------------
--- 5. 审计 / 登录日志（append-only，无 deleted_at）
+-- 5. 审计 / 登录日志（仅追加，无 deleted_at）
 -- ---------------------------------------------------------------------------
 
 DROP TABLE IF EXISTS `sishiyouxu_audit_log`;
@@ -238,7 +238,7 @@ CREATE TABLE `sishiyouxu_audit_log` (
     KEY `idx_user_action` (`user_uuid`, `action`),
     KEY `idx_resource`    (`resource_type`, `resource_uuid`),
     KEY `idx_created_at`  (`created_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='审计日志 (append-only)';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='审计日志 (仅追加)';
 
 DROP TABLE IF EXISTS `sishiyouxu_login_log`;
 CREATE TABLE `sishiyouxu_login_log` (
@@ -254,7 +254,7 @@ CREATE TABLE `sishiyouxu_login_log` (
     PRIMARY KEY (`uuid`),
     KEY `idx_user_login`  (`user_uuid`, `login_status`),
     KEY `idx_created_at`  (`created_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='登录日志 (append-only)';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='登录日志 (仅追加)';
 
 -- ---------------------------------------------------------------------------
 -- 6. 系统配置 / 敏感词 / 公告 / 黑名单 / 管理员权限

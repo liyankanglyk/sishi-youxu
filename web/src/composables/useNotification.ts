@@ -5,9 +5,9 @@ const NOTIFICATIONS_STORAGE_KEY = 'sishi-notifications'
 const NOTIFIED_KEY_PREFIX = 'sishi-notified-'
 
 /**
- * Composable for local due-date reminder notifications via Web Notification API.
+ * 通过 Web Notification API 实现本地到期提醒通知的组合式函数。
  *
- * Usage:
+ * 用法：
  *   const { enabled, requestPermission, startPolling, stopPolling } = useNotification(getTasks)
  *   startPolling()
  */
@@ -49,7 +49,7 @@ export function useNotification(getTasks: () => TaskOut[]) {
     try {
       new Notification(title, { body, icon: '/favicon.ico', tag })
     } catch {
-      // Notification constructor may fail in some environments
+      // Notification 构造函数在某些环境下可能失败
     }
   }
 
@@ -85,9 +85,9 @@ export function useNotification(getTasks: () => TaskOut[]) {
 
   function startPolling() {
     if (!enabled.value) return
-    // Initial check after 5s
+    // 5 秒后做首次检查
     setTimeout(checkAndNotify, 5000)
-    // Periodic check every 10 minutes
+    // 每 10 分钟定期检查
     intervalId = setInterval(checkAndNotify, 10 * 60 * 1000)
   }
 

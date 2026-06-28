@@ -3,14 +3,14 @@ import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { adminApi, type AdminTagListItem, type AdminTagDetail } from '@/api/admin'
 
-// ── State ──
+// ── 状态 ──
 const items = ref<AdminTagListItem[]>([])
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(20)
 const loading = ref(false)
 
-// Filters
+// 筛选条件
 const userUuidFilter = ref('')
 const userSearchOptions = ref<Array<{ label: string; value: string }>>([])
 const userSearchLoading = ref(false)
@@ -26,7 +26,7 @@ async function searchUsers(query: string) {
   finally { userSearchLoading.value = false }
 }
 
-// Dialog
+// 弹窗
 const dialogVisible = ref(false)
 const dialogLoading = ref(false)
 const dialogMode = ref<'create' | 'edit'>('create')
@@ -47,12 +47,12 @@ async function searchCreateUsers(query: string) {
   finally { createUserSearchLoading.value = false }
 }
 
-// Detail dialog
+// 详情弹窗
 const detailVisible = ref(false)
 const detailLoading = ref(false)
 const detail = ref<AdminTagDetail | null>(null)
 
-// ── Methods ──
+// ── 方法 ──
 
 async function fetch() {
   loading.value = true
@@ -175,7 +175,7 @@ onMounted(fetch)
   <div class="tag-list">
     <h2 class="page-title">标签管理</h2>
 
-    <!-- Toolbar -->
+    <!-- 工具栏 -->
     <div class="toolbar">
       <el-select
         v-model="userUuidFilter"
@@ -210,7 +210,7 @@ onMounted(fetch)
       <el-button type="success" @click="openCreate" style="margin-left:auto">+ 新增标签</el-button>
     </div>
 
-    <!-- Table -->
+    <!-- 表格 -->
     <el-table :data="items" v-loading="loading" stripe>
       <el-table-column label="颜色" width="70">
         <template #default="{ row }">
@@ -258,7 +258,7 @@ onMounted(fetch)
       @current-change="fetch"
     />
 
-    <!-- Create/Edit Dialog -->
+    <!-- 新建/编辑弹窗 -->
     <el-dialog
       v-model="dialogVisible"
       :title="dialogMode === 'create' ? '新增标签' : '编辑标签'"
@@ -304,7 +304,7 @@ onMounted(fetch)
       </template>
     </el-dialog>
 
-    <!-- Detail Dialog -->
+    <!-- 详情弹窗 -->
     <el-dialog
       v-model="detailVisible"
       title="标签详情"

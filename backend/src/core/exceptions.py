@@ -1,17 +1,17 @@
-"""Custom exception hierarchy.
+"""自定义异常体系。
 
-Skeleton defines the shape used across the project:
-  - BusinessException — mapped to a JSON error body with `code` + `message`.
-  - NotFoundException — convenience for 404 resources.
+骨架定义了项目中统一使用的异常形态：
+  - BusinessException —— 映射为包含 `code` + `message` 的 JSON 错误体。
+  - NotFoundException —— 用于 404 资源的便捷类。
 """
 from typing import Any
 
 
 class BusinessException(Exception):
-    """Base class for any application-level error.
+    """任意应用级错误的基类。
 
-    `code` follows the spec naming convention (e.g. AUTH_INVALID_CREDENTIALS).
-    `http_status` controls the HTTP status code emitted by the global handler.
+    `code` 遵循规范的命名约定（如 AUTH_INVALID_CREDENTIALS）。
+    `http_status` 控制全局处理器输出的 HTTP 状态码。
     """
 
     code: str = "INTERNAL_ERROR"

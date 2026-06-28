@@ -1,4 +1,4 @@
-"""Smoke tests for the skeleton — verify the framework boots & returns the spec'd envelope.
+"""针对骨架的烟雾测试 —— 验证框架能够启动并返回规范定义的标准响应外壳。
 
 Phase 0（mini-program ready）覆盖：
 

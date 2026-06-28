@@ -1,4 +1,4 @@
-"""User authentication service — Phase 3 implementation.
+"""用户认证 service —— Phase 3 实现。
 
 Phase 0 仅做骨架占位；Phase 3 实现：
 
@@ -73,7 +73,7 @@ class AuthErrorCode:
     VALIDATION_ERROR = "VALIDATION_ERROR"
 
 
-# Redis key TTLs（秒）
+# Redis key 过期时间（秒）
 _CAPTCHA_TTL = 300          # 5 分钟
 _SMS_CODE_TTL = 300         # 5 分钟
 _EMAIL_CODE_TTL = 600       # 10 分钟
@@ -87,7 +87,7 @@ class AuthService:
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
-        # Set by route layer before calling login/register/wechat_login
+        # 由路由层在调用 login/register/wechat_login 前设置
         self._request_ip: str | None = None
         self._request_ua: str | None = None
 
@@ -154,7 +154,7 @@ class AuthService:
                 code=AuthErrorCode.REFRESH_TOKEN_INVALID,
             )
         if record.revoked_at is not None:
-            # 重复使用 → 全设备吊销（token 轮换防重放）
+            # 重复使用 → 全设备吊销（token 旋转防重放）
             await self._revoke_all_refresh_tokens(record.user_uuid)
             raise UnauthorizedException(
                 "refresh_token 已被吊销",
@@ -488,7 +488,7 @@ class AuthService:
         return {"revokedCount": count}
 
     # =======================================================================
-    # WeChat 小程序登录（mock 模式）
+    # 微信小程序登录（mock 模式）
     # =======================================================================
 
     async def wechat_login(
@@ -873,10 +873,10 @@ class AuthService:
         login_status: LoginStatus,
         fail_reason: str | None = None,
     ) -> None:
-        """Record a login attempt (success or failure) with IP / UA captured from the request.
+        """记录一次登录尝试（成功或失败），写入请求中的 IP / UA。
 
-        Uses a synchronous connection to ensure the log is persisted even when
-        the parent async transaction is rolled back due to an auth error."""
+        使用同步连接以确保即使父级 async 事务因认证错误回滚，
+        日志仍然会被持久化。"""
         ip = getattr(self, "_request_ip", None) or None
         ua = getattr(self, "_request_ua", None) or None
 

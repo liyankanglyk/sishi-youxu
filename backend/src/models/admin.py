@@ -1,4 +1,4 @@
-"""Admin/supporting model skeletons: audit log, login log, config, etc.
+"""管理端/支撑模型骨架：审计日志、登录日志、系统配置等。
 
 设计要点：
 

@@ -1,4 +1,4 @@
-"""Auth-related model skeletons (identity, refresh token).
+"""认证相关模型骨架（身份、刷新令牌）。
 
 设计要点：
 
@@ -24,7 +24,7 @@ from src.models.base import Base, SoftDeleteMixin, TimestampMixin, UUIDMixin
 class AuthProvider(str, enum.Enum):
     """登录方式枚举。
 
-    新增 `wechat` 后，Provider 集为：
+    新增 `wechat` 后，Provider 集合为：
       - password    : 账号 + 密码（Web/Capacitor 通用）
       - phone_sms   : 手机号 + 短信验证码（mock 阶段）
       - email_code  : 邮箱 + 验证码（mock 阶段）

@@ -9,12 +9,12 @@ const page = ref(1)
 const pageSize = ref(20)
 const loading = ref(false)
 
-// Detail drawer
+// 详情抽屉
 const detailVisible = ref(false)
 const detailEntry = ref<AuditEntry | null>(null)
 const detailLoading = ref(false)
 
-// Filters
+// 筛选条件
 const userUuid = ref('')
 const userSearchOptions = ref<Array<{ label: string; value: string }>>([])
 const userSearchLoading = ref(false)
@@ -183,7 +183,7 @@ onMounted(fetch)
       @current-change="fetch"
     />
 
-    <!-- Detail drawer -->
+    <!-- 详情抽屉 -->
     <el-drawer v-model="detailVisible" title="审计日志详情" size="480px">
       <template v-if="detailEntry">
         <el-descriptions :column="1" border>

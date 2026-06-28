@@ -9,10 +9,10 @@ const page = ref(1)
 const pageSize = ref(20)
 const loading = ref(false)
 
-// Filter
+// 筛选条件
 const typeFilter = ref('')
 
-// Dialog
+// 弹窗相关
 const dialogVisible = ref(false)
 const dialogLoading = ref(false)
 const editingItem = ref<Announcement | null>(null)
@@ -202,7 +202,7 @@ onMounted(fetch)
       @current-change="fetch"
     />
 
-    <!-- Create/Edit Dialog -->
+    <!-- 新建/编辑公告弹窗 -->
     <el-dialog
       v-model="dialogVisible"
       :title="editingItem ? '编辑公告' : '新建公告'"

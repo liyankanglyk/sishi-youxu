@@ -1,7 +1,7 @@
-"""Generic repository base.
+"""通用仓储基类。
 
-Skeleton: a thin async-friendly CRUD surface. Subclasses inject their model type
-and rely on the soft-delete filter being applied automatically.
+骨架：薄薄一层的 async 友好 CRUD 抽象。子类注入自己的模型类型，
+并依赖自动应用的软删除过滤。
 """
 from __future__ import annotations
 
@@ -16,22 +16,22 @@ T = TypeVar("T")
 
 
 class BaseRepository(Generic[T]):
-    """Skeleton repository with soft-delete awareness."""
+    """支持软删除的仓储骨架。"""
 
     model: type[T]
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    # ---------- helpers ----------
+    # ---------- 辅助方法 ----------
 
     def _apply_soft_delete_filter(self, stmt: Any) -> Any:
-        """Inject `WHERE deleted_at IS NULL` when the model supports it."""
+        """当模型支持软删除时，注入 `WHERE deleted_at IS NULL` 条件。"""
         if issubclass(self.model, SoftDeleteMixin):
             stmt = stmt.where(self.model.deleted_at.is_(None))
         return stmt
 
-    # ---------- queries ----------
+    # ---------- 查询 ----------
 
     async def get(self, uuid: str) -> T | None:
         stmt = select(self.model).where(self.model.uuid == uuid)
@@ -53,7 +53,7 @@ class BaseRepository(Generic[T]):
         return instance
 
     async def soft_delete(self, uuid: str) -> bool:
-        """Mark the row deleted (only if it has SoftDeleteMixin)."""
+        """将该行标记为已删除（仅当模型带有 SoftDeleteMixin 时生效）。"""
         if not issubclass(self.model, SoftDeleteMixin):
             return False
         instance = await self.get(uuid)

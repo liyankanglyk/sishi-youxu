@@ -1,9 +1,9 @@
-"""Tag domain service — Phase 2 implementation.
+"""标签领域 service —— Phase 2 实现。
 
-Covers:
-- Tag CRUD with name uniqueness checks (per user + presets)
-- HEX color validation
-- Preset tag protection (cannot edit/delete presets)
+包含：
+- 标签 CRUD，含名称唯一性校验（用户作用域 + 预设标签）
+- HEX 颜色校验
+- 预设标签保护（不可编辑/删除预设标签）
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ _HEX_PATTERN = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 
 class TagService:
-    """All tag-related business logic."""
+    """所有与标签相关的业务逻辑。"""
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
@@ -46,7 +46,7 @@ class TagService:
         }
 
     async def list_tags(self, user_uuid: str) -> dict[str, Any]:
-        """List all tags for a user (including presets)."""
+        """列出用户的所有标签（含预设标签）。"""
         stmt = select(Tag).where(
             Tag.deleted_at.is_(None),
             (Tag.user_uuid == user_uuid) | (Tag.is_preset.is_(True)),
@@ -65,7 +65,7 @@ class TagService:
         }
 
     async def create_tag(self, user_uuid: str, data: dict[str, Any]) -> dict[str, Any]:
-        """Create a custom tag."""
+        """创建自定义标签。"""
         name = (data.get("name") or "").strip()
         color = (data.get("color") or "").strip()
 
@@ -88,7 +88,7 @@ class TagService:
                 detail={"color": "颜色值必须是有效的 HEX 格式，如 #A78BFA"},
             )
 
-        # Check name uniqueness (within user scope + presets)
+        # 检查名称唯一性（用户作用域 + 预设标签范围内）
         existing = await self.db.execute(
             select(Tag).where(
                 Tag.name == name,
@@ -118,7 +118,7 @@ class TagService:
     async def update_tag(
         self, uuid: str, user_uuid: str, data: dict[str, Any]
     ) -> dict[str, Any]:
-        """Update a custom tag (cannot edit presets)."""
+        """更新自定义标签（不可编辑预设标签）。"""
         stmt = select(Tag).where(
             Tag.uuid == uuid,
             Tag.deleted_at.is_(None),
@@ -127,7 +127,7 @@ class TagService:
         if tag is None:
             raise NotFoundException("标签不存在", code="TAG_NOT_FOUND")
 
-        # Preset tags are read-only for normal users
+        # 预设标签对普通用户为只读
         if tag.is_preset:
             raise ValidationException(
                 "预设标签不可修改",
@@ -135,7 +135,7 @@ class TagService:
                 detail={"isPreset": "预设标签不可修改"},
             )
 
-        # Only owner can update
+        # 仅所有者可更新
         if tag.user_uuid != user_uuid:
             raise NotFoundException("标签不存在", code="TAG_NOT_FOUND")
 
@@ -149,7 +149,7 @@ class TagService:
                     code="VALIDATION_ERROR",
                     detail={"name": "标签名称长度必须在 1-50 字符之间"},
                 )
-            # Check uniqueness if name changed
+            # 若名称发生变化则检查唯一性
             if name != tag.name:
                 existing = await self.db.execute(
                     select(Tag).where(
@@ -186,7 +186,7 @@ class TagService:
         return self._tag_to_out(tag)
 
     async def delete_tag(self, uuid: str, user_uuid: str) -> None:
-        """Soft-delete a custom tag (cannot delete presets)."""
+        """软删除自定义标签（不可删除预设标签）。"""
         stmt = select(Tag).where(
             Tag.uuid == uuid,
             Tag.deleted_at.is_(None),

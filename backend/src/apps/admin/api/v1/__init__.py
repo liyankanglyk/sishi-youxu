@@ -1,4 +1,4 @@
-"""Aggregate admin routers under a single APIRouter."""
+"""将管理后台各 router 聚合到同一个 APIRouter 下。"""
 from fastapi import APIRouter
 
 from src.apps.admin.api.v1 import audit, auth, config, content, dashboard, feedback, users

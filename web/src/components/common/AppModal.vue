@@ -127,7 +127,7 @@ function onEsc(e: KeyboardEvent) {
   border-top: 1px solid var(--c-gray-200);
 }
 
-/* Mobile full-width */
+/* 移动端占满宽度 */
 @media (max-width: 767px) {
   .modal-scrim {
     padding: 0;
@@ -149,7 +149,7 @@ function onEsc(e: KeyboardEvent) {
   }
 }
 
-/* Transition */
+/* 过渡动画 */
 .modal-enter-active {
   transition: opacity 0.28s var(--ease-spring);
 }

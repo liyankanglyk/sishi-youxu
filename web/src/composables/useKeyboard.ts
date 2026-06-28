@@ -8,7 +8,7 @@ export function useKeyboard() {
     const tag = (e.target as HTMLElement).tagName
     const isEditing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target as HTMLElement).isContentEditable
 
-    // Ctrl+Z / Ctrl+Shift+Z work even inside inputs for undo/redo
+    // Ctrl+Z / Ctrl+Shift+Z 即使在输入框中也生效，用于撤销/重做
     if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
       e.preventDefault()
       store.undo().catch(() => {})

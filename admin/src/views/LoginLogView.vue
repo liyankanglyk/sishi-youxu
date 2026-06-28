@@ -9,7 +9,7 @@ const page = ref(1)
 const pageSize = ref(20)
 const loading = ref(false)
 
-// Filters
+// 筛选条件
 const statusFilter = ref('')
 const providerFilter = ref('')
 const userUuidFilter = ref('')

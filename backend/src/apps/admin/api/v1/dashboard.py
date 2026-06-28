@@ -1,4 +1,4 @@
-"""Admin dashboard endpoints — Phase 1 implementation."""
+"""管理后台仪表盘端点 —— Phase 1 实现。"""
 from __future__ import annotations
 
 from fastapi import APIRouter

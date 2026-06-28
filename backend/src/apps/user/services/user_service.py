@@ -1,11 +1,11 @@
-"""User profile service — Phase 3 implementation.
+"""用户资料 service —— Phase 3 实现。
 
-Covers:
-- Profile update (nickname, locale, avatar)
-- Password change (with old-password verification + revoke all tokens)
-- Avatar upload (local file storage in dev; CDN in prod)
-- Auth-linkage (list / bind / unbind providers)
-- Reminder channels (skeleton placeholder)
+包含：
+- 资料更新（昵称、语言偏好、头像）
+- 修改密码（校验旧密码 + 撤销所有 token）
+- 上传头像（开发模式存本地，生产模式走 CDN）
+- 第三方登录绑定（列出 / 绑定 / 解绑）
+- 提醒渠道（骨架占位）
 """
 
 from __future__ import annotations
@@ -35,28 +35,28 @@ from src.models.user import User, UserStatus
 
 logger = get_logger(__name__)
 
-_LINK_TOKEN_TTL = 300  # 5 minutes
+_LINK_TOKEN_TTL = 300  # 5 分钟
 
 
 class UserService:
-    """User profile & account management."""
+    """用户资料与账户管理。"""
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
     # =========================================================================
-    # Profile
+    # 资料
     # =========================================================================
 
     async def get_me(self, user_uuid: str) -> dict[str, Any]:
-        """Return current user profile."""
+        """返回当前用户的资料。"""
         user = await self._get_user(user_uuid)
         if user is None:
             raise NotFoundException("用户不存在", code="USER_NOT_FOUND")
         return self._user_to_profile(user)
 
     async def update_me(self, user_uuid: str, data: dict[str, Any]) -> dict[str, Any]:
-        """Update current user profile fields (nickname, locale)."""
+        """更新当前用户的资料字段（昵称、语言偏好）。"""
         user = await self._get_user(user_uuid)
         if user is None:
             raise NotFoundException("用户不存在", code="USER_NOT_FOUND")
@@ -90,13 +90,13 @@ class UserService:
         return self._user_to_profile(user)
 
     # =========================================================================
-    # Password
+    # 密码
     # =========================================================================
 
     async def change_password(
         self, user_uuid: str, old_password: str, new_password: str
     ) -> dict[str, Any]:
-        """Change password: verify old, set new, revoke all refresh tokens."""
+        """修改密码：校验旧密码、设置新密码、撤销所有 refresh token。"""
         if not old_password or not new_password:
             raise ValidationException(
                 "oldPassword 与 newPassword 必填",
@@ -109,7 +109,7 @@ class UserService:
                 detail={"newPassword": "密码最少 8 字符"},
             )
 
-        # Find password identity for this user
+        # 查找该用户的密码登录身份
         identity = await self._find_identity(
             provider=AuthProvider.password, user_uuid=user_uuid
         )
@@ -128,29 +128,29 @@ class UserService:
         identity.credentials = hash_password(new_password)
         await self.db.flush()
 
-        # Revoke all refresh tokens → force re-login on all devices
+        # 撤销所有 refresh token → 强制所有设备重新登录
         revoked = await self._revoke_all_refresh_tokens(user_uuid)
         logger.info("password changed for user=%s, revoked %d refresh tokens", user_uuid, revoked)
 
         return {"message": "密码修改成功"}
 
     # =========================================================================
-    # Avatar
+    # 头像
     # =========================================================================
 
     async def upload_avatar(
         self, user_uuid: str, file_content: bytes, filename: str
     ) -> dict[str, Any]:
-        """Save avatar file and update user's avatar_url.
+        """保存头像文件并更新用户的 avatar_url。
 
-        Dev mode: save to local ``backend/avatars/`` directory.
-        Production: expects CDN/S3 upload (placeholder).
+        开发模式：保存到本地 ``backend/avatars/`` 目录。
+        生产模式：预期走 CDN/S3 上传（占位）。
         """
         user = await self._get_user(user_uuid)
         if user is None:
             raise NotFoundException("用户不存在", code="USER_NOT_FOUND")
 
-        # Validate file type
+        # 校验文件类型
         ext = os.path.splitext(filename)[1].lower()
         if ext not in {".jpg", ".jpeg", ".png", ".webp"}:
             raise ValidationException(
@@ -159,7 +159,7 @@ class UserService:
                 detail={"file": "头像图片仅支持 JPG/PNG/WebP 格式"},
             )
 
-        # 2 MB max
+        # 最大 2MB
         max_size = 2 * 1024 * 1024
         if len(file_content) > max_size:
             raise ValidationException(
@@ -168,7 +168,7 @@ class UserService:
                 detail={"file": "头像图片最大 2MB"},
             )
 
-        # Dev: save to local directory
+        # 开发模式：保存到本地目录
         avatars_dir = os.path.join(
             os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
             "avatars",
@@ -180,7 +180,7 @@ class UserService:
         with open(save_path, "wb") as f:
             f.write(file_content)
 
-        # Build avatar URL
+        # 构造头像 URL
         avatar_url = f"/avatars/{save_name}"
         user.avatar_url = avatar_url
         await self.db.flush()
@@ -192,11 +192,11 @@ class UserService:
         }
 
     # =========================================================================
-    # Auth Linkage
+    # 第三方登录绑定
     # =========================================================================
 
     async def create_link_token(self, user_uuid: str) -> dict[str, Any]:
-        """Generate a temporary link_token for binding a new auth provider."""
+        """生成用于绑定新登录方式的临时 link_token。"""
         token = secrets.token_urlsafe(32)
         redis = get_redis()
         await redis.set(
@@ -210,7 +210,7 @@ class UserService:
         }
 
     async def list_linkage(self, user_uuid: str) -> dict[str, Any]:
-        """List currently bound auth providers with masked identifiers."""
+        """列出已绑定的登录方式，标识脱敏显示。"""
         stmt = select(AuthIdentity).where(
             AuthIdentity.user_uuid == user_uuid,
             AuthIdentity.deleted_at.is_(None),
@@ -237,14 +237,14 @@ class UserService:
         link_token: str,
         payload: dict[str, Any],
     ) -> dict[str, Any]:
-        """Bind a new auth provider (phone_sms / email_code) to the current account."""
+        """为当前账号绑定新的登录方式（phone_sms / email_code）。"""
         if provider not in {"phone_sms", "email_code"}:
             raise ValidationException(
                 f"不支持的绑定方式: {provider}",
                 code="VALIDATION_ERROR",
             )
 
-        # Verify link_token
+        # 校验 link_token
         redis = get_redis()
         key = build_key("link:token", link_token)
         stored_user = await getdel(redis, key)
@@ -256,7 +256,7 @@ class UserService:
                 code="AUTH_LINK_TOKEN_INVALID",
             )
 
-        # Verify code
+        # 校验验证码
         auth_provider = AuthProvider(provider)
         identifier: str
         code: str
@@ -279,7 +279,7 @@ class UserService:
             code,
         )
 
-        # Check if already bound
+        # 检查是否已被绑定
         existing = await self._find_identity(provider=auth_provider, provider_uid=identifier)
         if existing is not None:
             if existing.user_uuid == user_uuid:
@@ -292,7 +292,7 @@ class UserService:
                 code="USER_ALREADY_EXISTS",
             )
 
-        # Create identity
+        # 创建身份记录
         self.db.add(
             AuthIdentity(
                 user_uuid=user_uuid,
@@ -309,7 +309,7 @@ class UserService:
         }
 
     async def unbind_provider(self, user_uuid: str, provider: str) -> dict[str, Any]:
-        """Unbind an auth provider from the current account."""
+        """解绑当前账号的某个登录方式。"""
         if provider not in {"phone_sms", "email_code", "wechat"}:
             raise ValidationException(
                 f"不支持解绑该登录方式: {provider}",
@@ -318,7 +318,7 @@ class UserService:
 
         auth_provider = AuthProvider(provider)
 
-        # Count how many identities this user has; prevent removing the last one
+        # 统计该用户拥有的登录身份数量，避免移除最后一个
         count_stmt = select(AuthIdentity).where(
             AuthIdentity.user_uuid == user_uuid,
             AuthIdentity.deleted_at.is_(None),
@@ -344,7 +344,7 @@ class UserService:
         return {"unbound": provider}
 
     # =========================================================================
-    # Internal helpers
+    # 内部辅助
     # =========================================================================
 
     async def _get_user(self, user_uuid: str) -> User | None:
@@ -388,7 +388,7 @@ class UserService:
     async def _verify_code(
         self, kind: Literal["sms", "email"], identifier: str, code: str
     ) -> None:
-        """Verify sms / email code from Redis (one-time consumption)."""
+        """从 Redis 中校验 sms / email 验证码（一次性消费）。"""
         redis = get_redis()
         key = build_key(f"{kind}:code", identifier)
         stored = await getdel(redis, key)
@@ -420,10 +420,10 @@ class UserService:
 
     @staticmethod
     def _mask_identifier(provider: str, identifier: str) -> str:
-        """Mask identifier for safe display.
+        """对标识进行脱敏以便安全展示。
 
-        Email: u***@example.com (keep first char + domain)
-        Phone: +86 138****1234 (keep prefix + last 4)
+        邮箱：u***@example.com（保留首字母 + 域名）
+        手机号：+86 138****1234（保留前缀 + 末四位）
         """
         if provider in ("password", "email_code"):
             if "@" in identifier:
@@ -432,7 +432,7 @@ class UserService:
                 return f"{local_masked}@{domain}"
             return identifier[0] + "***" if len(identifier) > 0 else "***"
         if provider == "phone_sms":
-            # Keep country code + first 3 digits + **** + last 4
+            # 保留国家码 + 前 3 位 + **** + 末四位
             if len(identifier) >= 11:
                 return f"{identifier[:7]}****{identifier[-4:]}"
             return identifier[:3] + "****" + identifier[-4:] if len(identifier) > 7 else identifier[:1] + "****"

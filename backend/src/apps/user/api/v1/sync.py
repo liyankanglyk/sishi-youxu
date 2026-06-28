@@ -1,9 +1,9 @@
-"""Sync endpoints — Phase 2 implementation.
+"""同步相关端点 —— Phase 2 实现。
 
-Implemented:
-- POST /sync/push — push local changes to server
-- GET /sync/pull — pull changes since timestamp
-- GET /sync/status — public endpoint for time calibration
+已实现的功能：
+- POST /sync/push — 将本地变更推送到服务端
+- GET /sync/pull — 拉取指定时间戳之后的变更
+- GET /sync/status — 公开时间校准端点
 """
 
 from __future__ import annotations
@@ -29,18 +29,18 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/sync", tags=["user-sync"])
 
-# Idempotency TTL for sync ops (24 hours)
+# 同步操作的幂等性 TTL（24 小时）
 _SYNC_IDEMPOTENCY_TTL = 86400
 
 
 # =============================================================================
-# Push
+# 推送
 # =============================================================================
 
 
 @router.post("/push", summary="推送变更", description="批量推送本地 ops 到服务端，支持 opId 级幂等")
 async def push_sync(body: SyncPushRequest, current: RequiredUser, db: DbSession) -> dict:
-    """Push local ops to server with idempotency per opId."""
+    """将本地 ops 推送到服务端，按 opId 实现幂等。"""
     ops: list[dict] = [op.model_dump() for op in body.ops]
 
     if len(ops) > 100:
@@ -61,7 +61,7 @@ async def push_sync(body: SyncPushRequest, current: RequiredUser, db: DbSession)
             results.append({"opId": "", "status": "rejected", "reason": "opId missing"})
             continue
 
-        # Idempotency check
+        # 幂等性检查
         idem_key = build_key("sync:op", op_id)
         cached = await redis.get(idem_key)
         if cached is not None:
@@ -80,7 +80,7 @@ async def push_sync(body: SyncPushRequest, current: RequiredUser, db: DbSession)
             op_result["status"] = "applied"
             op_result["serverTime"] = datetime.utcnow().isoformat()
 
-            # Cache result for idempotency
+            # 缓存结果用于幂等
             await redis.set(
                 idem_key,
                 json.dumps(op_result, default=str),
@@ -112,11 +112,11 @@ async def _apply_op(
     action: str,
     payload: dict,
 ) -> dict:
-    """Apply a single sync op based on entity type."""
+    """根据实体类型应用单个同步操作。"""
     if entity == "task":
         if action == "upsert":
             if payload.get("uuid"):
-                # Try update, fallback to create
+                # 尝试更新，失败回退为创建
                 try:
                     result = await svc.update_task(payload["uuid"], user_uuid, payload)
                     return {"serverRecord": result}
@@ -230,7 +230,7 @@ async def _apply_op(
                         "completed": item.completed,
                         "sortOrder": item.sort_order,
                     }}
-            # Create
+            # 创建
             item = TaskChecklist(
                 task_uuid=payload.get("task_uuid", ""),
                 title=payload.get("title", ""),
@@ -264,7 +264,7 @@ async def _apply_op(
 
 
 # =============================================================================
-# Pull
+# 拉取
 # =============================================================================
 
 
@@ -295,7 +295,7 @@ async def pull_sync(
             task_stmt = task_stmt.where(Task.updated_at >= since_dt)
         tasks = (await db.execute(task_stmt)).scalars().all()
 
-        # Also get soft-deleted tasks since timestamp
+        # 同时获取自该时间戳以来被软删除的任务
         deleted_stmt = select(Task.uuid).where(
             Task.user_uuid == user_uuid,
             Task.deleted_at.is_(None) == False,
@@ -378,13 +378,13 @@ async def pull_sync(
 
 
 # =============================================================================
-# Status (public)
+# 状态（公开）
 # =============================================================================
 
 
 @router.get("/status", summary="服务端时间", description="公开端点，返回服务端时间供客户端校准")
 async def sync_status() -> dict:
-    """Public endpoint for time calibration."""
+    """用于客户端时间校准的公开端点。"""
     now = datetime.now(timezone.utc)
     return ok({
         "serverAt": now.isoformat(),

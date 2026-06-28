@@ -1,14 +1,14 @@
-"""Task CRUD endpoints — Phase 2 implementation.
+"""任务 CRUD 端点 —— Phase 2 实现。
 
-Implemented:
-- GET /tasks — list tasks (paginated, filtered)
-- POST /tasks — create task
-- GET /tasks/{uuid} — task detail
-- PATCH /tasks/{uuid} — update task
-- DELETE /tasks/{uuid} — soft delete
-- POST /tasks/{uuid}/restore — restore
-- POST /tasks/batch — batch operations
-- Checklist CRUD sub-resource
+已实现的功能：
+- GET /tasks — 任务列表（分页、可筛选）
+- POST /tasks — 创建任务
+- GET /tasks/{uuid} — 任务详情
+- PATCH /tasks/{uuid} — 更新任务
+- DELETE /tasks/{uuid} — 软删除
+- POST /tasks/{uuid}/restore — 恢复任务
+- POST /tasks/batch — 批量操作
+- 检查项 CRUD 子资源
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ def _service(db: DbSession) -> TaskService:
 
 
 # =============================================================================
-# Task CRUD
+# 任务 CRUD
 # =============================================================================
 
 
@@ -117,7 +117,7 @@ async def batch_tasks(body: BatchActionRequest, current: RequiredUser, db: DbSes
 
 
 # =============================================================================
-# Checklist sub-resource
+# 检查项子资源
 # =============================================================================
 
 checklist_router = APIRouter(

@@ -1,6 +1,6 @@
 import Dexie, { type Table } from 'dexie'
 
-// ── Entity interfaces matching backend models ──
+// ── 与后端模型对齐的实体接口 ──
 
 export interface LocalTask {
   uuid: string
@@ -77,7 +77,7 @@ export interface AuthSessionEntry {
   expiresAt: string
 }
 
-// ── Database class ──
+// ── 数据库类 ──
 
 class SishiYouxuDB extends Dexie {
   tasks!: Table<LocalTask, string>
@@ -103,13 +103,13 @@ class SishiYouxuDB extends Dexie {
   }
 }
 
-// ── Singleton ──
+// ── 单例 ──
 
 export const db = new SishiYouxuDB()
 
-// ── Helpers ──
+// ── 辅助函数 ──
 
-/** Open the database (call once on app startup). */
+/** 打开数据库（应用启动时调用一次）。 */
 export async function initDatabase(): Promise<void> {
   try {
     await db.open()
@@ -120,7 +120,7 @@ export async function initDatabase(): Promise<void> {
   }
 }
 
-/** Generate a UUID v4 (client-side fallback when offline). */
+/** 生成 UUID v4（离线时的客户端兜底实现）。 */
 export function generateUuid(): string {
   return crypto.randomUUID?.() ?? 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0
@@ -129,7 +129,7 @@ export function generateUuid(): string {
   })
 }
 
-/** Return an ISO 8601 UTC timestamp string. */
+/** 返回 ISO 8601 格式的 UTC 时间戳字符串。 */
 export function nowISO(): string {
   return new Date().toISOString()
 }

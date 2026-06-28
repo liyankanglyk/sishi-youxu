@@ -6,14 +6,14 @@ import { adminApi, type AdminTaskListItem, type AdminTaskDetail } from '@/api/ad
 
 const router = useRouter()
 
-// ── State ──
+// ── 状态 ──
 const items = ref<AdminTaskListItem[]>([])
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(20)
 const loading = ref(false)
 
-// Filters
+// 筛选条件
 const userUuidFilter = ref('')
 const userSearchOptions = ref<Array<{ label: string; value: string }>>([])
 const userSearchLoading = ref(false)
@@ -61,15 +61,15 @@ const statusOptions = [
   { label: '未完成', value: false },
 ]
 
-// Selection
+// 选中项
 const selectedUuids = ref<string[]>([])
 
-// Detail dialog
+// 详情弹窗
 const dialogVisible = ref(false)
 const dialogLoading = ref(false)
 const detail = ref<AdminTaskDetail | null>(null)
 
-// Create / Edit dialog
+// 新建 / 编辑弹窗
 const formDialogVisible = ref(false)
 const formDialogMode = ref<'create' | 'edit'>('create')
 const formSaving = ref(false)
@@ -191,7 +191,7 @@ async function submitForm() {
   }
 }
 
-// ── Methods ──
+// ── 方法 ──
 
 async function fetch() {
   loading.value = true
@@ -314,7 +314,7 @@ onMounted(fetch)
   <div class="task-list">
     <h2 class="page-title">任务管理</h2>
 
-    <!-- Toolbar -->
+    <!-- 工具栏 -->
     <div class="toolbar">
       <el-select
         v-model="userUuidFilter"
@@ -396,13 +396,13 @@ onMounted(fetch)
       <el-button type="primary" @click="openCreateDialog">+ 新建任务</el-button>
     </div>
 
-    <!-- Batch toolbar -->
+    <!-- 批量操作工具栏 -->
     <div v-if="selectedUuids.length" class="batch-bar">
       <span>已选 {{ selectedUuids.length }} 项</span>
       <el-button type="danger" size="small" @click="batchDelete">批量删除</el-button>
     </div>
 
-    <!-- Table -->
+    <!-- 任务表格 -->
     <el-table
       :data="items"
       v-loading="loading"
@@ -472,7 +472,7 @@ onMounted(fetch)
       @current-change="fetch"
     />
 
-    <!-- Detail Dialog -->
+    <!-- 详情弹窗 -->
     <el-dialog
       v-model="dialogVisible"
       title="任务详情"
@@ -523,7 +523,7 @@ onMounted(fetch)
           </el-descriptions-item>
         </el-descriptions>
 
-        <!-- Checklist -->
+        <!-- 检查项列表 -->
         <div v-if="detail.checklist?.length" style="margin-top:1rem">
           <h4 style="margin-bottom:0.5rem">检查项 ({{ detail.checklist.filter(c => c.completed).length }}/{{ detail.checklist.length }})</h4>
           <el-table :data="detail.checklist" size="small" stripe>
@@ -544,7 +544,7 @@ onMounted(fetch)
       </template>
     </el-dialog>
 
-    <!-- Create / Edit Dialog -->
+    <!-- 新建 / 编辑任务弹窗 -->
     <el-dialog
       v-model="formDialogVisible"
       :title="formDialogMode === 'create' ? '新建任务' : '编辑任务'"

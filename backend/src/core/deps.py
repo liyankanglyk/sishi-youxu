@@ -1,4 +1,4 @@
-"""Common FastAPI dependencies: DB session, current user, admin guards.
+"""通用 FastAPI 依赖：DB session、当前用户、管理员守卫。
 
 Phase 3 实现：
 
@@ -142,7 +142,7 @@ async def get_current_user_optional(
     db: DbSession,
     authorization: Annotated[str | None, Header()] = None,
 ) -> dict:
-    """骨架阶段沿用的「可选鉴权」依赖：Phase 3 实现真解析但保留 guest 行为。"""
+    """骨架阶段沿用的「可选鉴权」依赖：Phase 3 实现真实解析但保留 guest 行为。"""
     return await _resolve_actor(request, db, required=False)
 
 
@@ -180,7 +180,7 @@ WsUser = Annotated[dict, Depends(get_ws_user)]
 
 
 async def require_admin(current: CurrentUser) -> dict:
-    """Skeleton guard for admin endpoints."""
+    """管理员端点的骨架守卫。"""
     if current.get("role") not in {"admin", "super_admin"}:
         raise UnauthorizedException("需要管理员权限", code="AUTH_ADMIN_REQUIRED")
     return current

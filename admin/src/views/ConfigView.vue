@@ -72,7 +72,7 @@ async function handleSave() {
   }
 }
 
-// ── Password ──
+// ── 修改密码 ──
 const pwOld = ref('')
 const pwNew = ref('')
 const pwConfirm = ref('')

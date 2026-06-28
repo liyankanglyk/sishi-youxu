@@ -1,1 +1,1 @@
-"""App package marker."""
+"""App 包标记文件。"""

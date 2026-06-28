@@ -1,4 +1,4 @@
-"""Auth DTOs (skeleton).
+"""认证相关 DTO（骨架）。
 
 设计要点（兼容微信小程序）：
 - `LoginRequest.provider` 字面量新增 `wechat`
@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 
 # ---------------------------------------------------------------------------
-# Enums / Literals
+# 枚举 / 字面量
 # ---------------------------------------------------------------------------
 ProviderLiteral = Literal["password", "phone_sms", "email_code", "wechat"]
 SmsPurposeLiteral = Literal["login", "register", "bind"]
@@ -23,7 +23,7 @@ EmailPurposeLiteral = Literal["login", "register", "bind"]
 
 
 # ---------------------------------------------------------------------------
-# Request DTOs
+# 请求 DTO
 # ---------------------------------------------------------------------------
 class LoginRequest(BaseModel):
     """账号登录请求。
@@ -125,7 +125,7 @@ class RegisterRequest(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Response DTOs
+# 响应 DTO
 # ---------------------------------------------------------------------------
 class UserOut(BaseModel):
     """用户信息（登录/注册响应中返回）。"""
@@ -207,7 +207,7 @@ class PasswordResetResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# User profile DTOs
+# 用户资料 DTO
 # ---------------------------------------------------------------------------
 class UpdateProfileRequest(BaseModel):
     """更新个人资料请求。"""
@@ -290,7 +290,7 @@ class UserProfileResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Reminder channels
+# 提醒渠道
 # ---------------------------------------------------------------------------
 class ReminderChannelItem(BaseModel):
     """单个提醒渠道。"""

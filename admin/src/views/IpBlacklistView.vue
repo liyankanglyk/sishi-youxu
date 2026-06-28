@@ -9,7 +9,7 @@ const page = ref(1)
 const pageSize = ref(20)
 const loading = ref(false)
 
-// Dialog
+// 弹窗相关
 const dialogVisible = ref(false)
 const dialogLoading = ref(false)
 const formIp = ref('')
@@ -39,7 +39,7 @@ async function handleSubmit() {
     ElMessage.warning('请输入IP地址')
     return
   }
-  // Simple IP validation
+  // 简单的 IP 校验
   const ipRegex = /^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/
   if (!ipRegex.test(formIp.value.trim())) {
     ElMessage.warning('请输入有效的IP地址')
@@ -131,7 +131,7 @@ onMounted(fetch)
       @current-change="fetch"
     />
 
-    <!-- Add Dialog -->
+    <!-- 添加 IP 弹窗 -->
     <el-dialog
       v-model="dialogVisible"
       title="添加IP黑名单"

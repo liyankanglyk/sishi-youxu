@@ -18,10 +18,10 @@ async function handleRequest() {
   errorMsg.value = ''
   try {
     const { data } = await authApi.requestPasswordReset(email.value.trim())
-    // Force unwrap: apiClient may unwrap data automatically
+    // 强制解包：apiClient 可能会自动解包 data
     const payload = data && typeof data === 'object' && 'data' in data ? (data as any).data : data
     sent.value = true
-    // Show debug token in dev mode
+    // 在开发模式下展示调试 token
     if (payload?.debugToken) {
       toast.success(`模拟邮件已发送，重置码：${payload.debugToken}`)
     } else {

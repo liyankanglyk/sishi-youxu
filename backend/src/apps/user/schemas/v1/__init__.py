@@ -1,11 +1,10 @@
-"""v1 user schemas aggregator.
+"""v1 用户端 schema 聚合器。
 
-Export all request/response DTOs so route handlers can import them
-from a single source.
+统一导出所有请求/响应 DTO，便于路由处理器从单一来源导入。
 """
 
 from src.apps.user.schemas.v1.auth import (
-    # Request
+    # 请求
     BindProviderRequest,
     CaptchaVerifyRequest,
     ChangePasswordRequest,
@@ -21,7 +20,7 @@ from src.apps.user.schemas.v1.auth import (
     UpdateProfileRequest,
     UpdateReminderChannelsRequest,
     WechatLoginRequest,
-    # Response
+    # 响应
     AuthLinkageItem,
     AuthLinkageListResponse,
     AvatarUploadResponse,
@@ -54,7 +53,7 @@ from src.apps.user.schemas.v1.task import (
 )
 
 __all__ = [
-    # Auth requests
+    # 认证请求
     "BindProviderRequest",
     "CaptchaVerifyRequest",
     "ChangePasswordRequest",
@@ -70,7 +69,7 @@ __all__ = [
     "UpdateProfileRequest",
     "UpdateReminderChannelsRequest",
     "WechatLoginRequest",
-    # Auth responses
+    # 认证响应
     "AuthLinkageItem",
     "AuthLinkageListResponse",
     "AvatarUploadResponse",
@@ -88,18 +87,18 @@ __all__ = [
     "UserOut",
     "UserProfileResponse",
     "WsTicketResponse",
-    # Common
+    # 通用
     "PageMeta",
-    # Feedback
+    # 反馈
     "FeedbackCreateRequest",
-    # Sync
+    # 同步
     "SyncOpItem",
     "SyncPushRequest",
-    # Tag
+    # 标签
     "TagCreateRequest",
     "TagOut",
     "TagUpdateRequest",
-    # Task
+    # 任务
     "BatchActionRequest",
     "ChecklistCreateRequest",
     "ChecklistUpdateRequest",

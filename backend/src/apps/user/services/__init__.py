@@ -1,4 +1,4 @@
-"""User service package."""
+"""用户端 service 包。"""
 from src.apps.user.services.auth_service import AuthService
 from src.apps.user.services.tag_service import TagService
 from src.apps.user.services.task_service import TaskService

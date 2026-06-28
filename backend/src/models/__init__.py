@@ -1,4 +1,4 @@
-"""Model registry — importing this package registers all tables on Base.metadata."""
+"""模型注册中心 —— 导入本包即可将所有表注册到 Base.metadata。"""
 from src.models.admin import (
     AdminPermission,
     AdminRole,

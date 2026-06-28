@@ -67,7 +67,7 @@ const checklistProgress = computed(() => {
     tabindex="0"
     @keydown.enter="emit('click', task)"
   >
-    <!-- Complete / select indicator -->
+    <!-- 完成 / 选中指示 -->
     <template v-if="!task.completed">
       <button
         class="complete-btn"
@@ -80,7 +80,7 @@ const checklistProgress = computed(() => {
       </button>
     </template>
 
-    <!-- Title row -->
+    <!-- 标题行 -->
     <div class="card-title-row">
       <span class="card-title">{{ task.title || '未命名' }}</span>
       <svg
@@ -98,9 +98,9 @@ const checklistProgress = computed(() => {
       </svg>
     </div>
 
-    <!-- Bottom row: tags + date -->
+    <!-- 底部行：标签 + 日期 -->
     <div class="card-footer">
-      <!-- Tags — hidden in compact, dots in standard, names in detailed -->
+      <!-- 标签 —— 紧凑模式隐藏，标准模式显示色点，详细模式显示名称 -->
       <div v-if="!isCompact && tags.length" class="card-tags">
         <template v-if="!isDetailed">
           <span
@@ -124,7 +124,7 @@ const checklistProgress = computed(() => {
         </template>
       </div>
 
-      <!-- Due date + checklist -->
+      <!-- 截止日期 + 检查项 -->
       <div v-if="dueDateStr || checklistProgress" class="card-due">
         <span v-if="checklistProgress" class="checklist-text">{{ checklistProgress }}</span>
         <span
@@ -141,12 +141,12 @@ const checklistProgress = computed(() => {
       </div>
     </div>
 
-    <!-- Note preview (detailed only) -->
+    <!-- 备注预览（仅详细模式） -->
     <div v-if="isDetailed && task.note" class="card-note">
       {{ task.note }}
     </div>
 
-    <!-- Delete button (positioned absolute, shown on hover) -->
+    <!-- 删除按钮（绝对定位，悬停时显示） -->
     <button
       class="delete-btn"
       title="删除"
@@ -156,7 +156,7 @@ const checklistProgress = computed(() => {
 </template>
 
 <style scoped>
-/* ── Base card ── */
+/* ── 基础卡片 ── */
 .task-card {
   position: relative;
   background: rgba(255, 255, 255, 0.85);
@@ -190,7 +190,7 @@ const checklistProgress = computed(() => {
   cursor: grabbing;
 }
 
-/* ── States ── */
+/* ── 状态 ── */
 .task-card.completed {
   opacity: 0.6;
 }
@@ -211,7 +211,7 @@ const checklistProgress = computed(() => {
   opacity: 0.35;
 }
 
-/* ── Complete button (top-right, hover reveal) ── */
+/* ── 完成按钮（右上角，悬停显示） ── */
 .complete-btn {
   position: absolute;
   top: -6px;
@@ -245,7 +245,7 @@ const checklistProgress = computed(() => {
   color: #fff;
 }
 
-/* ── Delete button (top-left, hover reveal) ── */
+/* ── 删除按钮（左上角，悬停显示） ── */
 .delete-btn {
   position: absolute;
   top: -6px;
@@ -281,7 +281,7 @@ const checklistProgress = computed(() => {
   color: #fff;
 }
 
-/* ── Title ── */
+/* ── 标题 ── */
 .card-title-row {
   display: flex;
   align-items: center;
@@ -306,7 +306,7 @@ const checklistProgress = computed(() => {
   color: var(--c-brand-500);
 }
 
-/* ── Footer (tags + due) ── */
+/* ── 底部（标签 + 截止日期） ── */
 .card-footer {
   display: flex;
   align-items: center;
@@ -355,7 +355,7 @@ const checklistProgress = computed(() => {
   flex-shrink: 0;
 }
 
-/* ── Due date ── */
+/* ── 截止日期 ── */
 .card-due {
   display: flex;
   align-items: center;
@@ -386,7 +386,7 @@ const checklistProgress = computed(() => {
   font-variant-numeric: tabular-nums;
 }
 
-/* ── Note ── */
+/* ── 备注 ── */
 .card-note {
   margin-top: 4px;
   font-size: 10px;
@@ -400,10 +400,10 @@ const checklistProgress = computed(() => {
 }
 
 /* ══════════════════════════════════════════ */
-/* Density variants                           */
+/* 密度变体                                   */
 /* ══════════════════════════════════════════ */
 
-/* ── Compact ── */
+/* ── 紧凑 ── */
 .density-compact {
   padding: 6px 8px;
   min-width: 72px;
@@ -432,7 +432,7 @@ const checklistProgress = computed(() => {
   font-size: 10px;
 }
 
-/* ── Detailed ── */
+/* ── 详细 ── */
 .density-detailed {
   padding: 10px 12px;
   min-width: 140px;
@@ -446,7 +446,7 @@ const checklistProgress = computed(() => {
   word-break: break-word;
 }
 
-/* ── Mobile: narrow + tall, vertical stacking ── */
+/* ── 移动端：窄而高，纵向堆叠 ── */
 @media (max-width: 767px) {
   .task-card {
     padding: 6px 7px;
@@ -458,7 +458,7 @@ const checklistProgress = computed(() => {
     max-width: 100px;
   }
 
-  /* Title: allow 2-line wrapping */
+  /* 标题：允许最多两行换行 */
   .card-title-row {
     align-items: flex-start;
   }
@@ -481,7 +481,7 @@ const checklistProgress = computed(() => {
     margin-top: 1px;
   }
 
-  /* Footer: stack vertically */
+  /* 底部：纵向堆叠 */
   .card-footer {
     flex-direction: column;
     align-items: flex-start;
@@ -511,7 +511,7 @@ const checklistProgress = computed(() => {
     font-size: 8px;
   }
 
-  /* Tags: tiny chips, max 2 shown */
+  /* 标签：极小 chip，最多展示 2 个 */
   .card-tags {
     display: flex !important;
     flex-wrap: wrap;
@@ -537,7 +537,7 @@ const checklistProgress = computed(() => {
     height: 4px;
   }
 
-  /* Buttons always visible */
+  /* 按钮始终可见 */
   .complete-btn,
   .delete-btn {
     opacity: 1;
@@ -560,9 +560,9 @@ const checklistProgress = computed(() => {
     display: none;
   }
 
-  /* ---- Density variants on mobile ---- */
+  /* ---- 移动端密度变体 ---- */
 
-  /* Standard: narrow, moderate height */
+  /* 标准：窄，适中高度 */
   .density-standard {
     max-width: 100px;
     min-width: 68px;
@@ -570,7 +570,7 @@ const checklistProgress = computed(() => {
     padding: 5px 7px;
   }
 
-  /* Compact: extra narrow, minimal */
+  /* 紧凑：极窄、极简 */
   .density-compact {
     max-width: 70px;
     min-width: 48px;
@@ -594,7 +594,7 @@ const checklistProgress = computed(() => {
     display: none;
   }
 
-  /* Detailed: widest, tallest */
+  /* 详细：最宽、最高 */
   .density-detailed {
     max-width: 130px;
     min-width: 90px;

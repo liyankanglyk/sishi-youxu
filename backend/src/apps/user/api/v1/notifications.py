@@ -1,11 +1,11 @@
-"""Notification endpoints — Phase 2 implementation.
+"""通知相关端点 —— Phase 2 实现。
 
-Implemented:
-- GET /notifications — paginated list with isRead filter
-- GET /notifications/unread-count — unread count
-- PATCH /notifications/{uuid}/read — mark single as read
-- POST /notifications/read-all — mark all as read
-- DELETE /notifications/{uuid} — delete notification
+已实现的功能：
+- GET /notifications — 分页列表，支持 isRead 筛选
+- GET /notifications/unread-count — 未读数量
+- PATCH /notifications/{uuid}/read — 标记单条为已读
+- POST /notifications/read-all — 全部标记为已读
+- DELETE /notifications/{uuid} — 删除通知
 """
 
 from __future__ import annotations
@@ -25,9 +25,9 @@ router = APIRouter(prefix="/notifications", tags=["user-notifications"])
 
 
 async def _sync_all(user_uuid: str, db) -> None:
-    """Generate any pending notifications for this user:
-    1. Task reminders for overdue/due-today tasks
-    2. System announcements the user hasn't seen yet
+    """为当前用户生成所有待生成的通知：
+    1. 过期/今日到期的任务提醒
+    2. 用户尚未查看的系统公告
     """
     today = date.today()
     now = datetime.utcnow()
@@ -116,7 +116,7 @@ async def _sync_all(user_uuid: str, db) -> None:
 
 
 # =============================================================================
-# List
+# 列表
 # =============================================================================
 
 
@@ -138,11 +138,11 @@ async def list_notifications(
     if isRead is not None:
         stmt = stmt.where(Notification.is_read == isRead)
 
-    # Count
+    # 计数
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = (await db.execute(count_stmt)).scalar() or 0
 
-    # Paginate
+    # 分页
     stmt = stmt.order_by(Notification.created_at.desc())
     stmt = stmt.limit(pageSize).offset((page - 1) * pageSize)
     rows = (await db.execute(stmt)).scalars().all()
@@ -172,7 +172,7 @@ async def list_notifications(
 
 
 # =============================================================================
-# Unread count
+# 未读数量
 # =============================================================================
 
 
@@ -189,7 +189,7 @@ async def unread_count(current: RequiredUser, db: DbSession) -> dict:
 
 
 # =============================================================================
-# Mark read
+# 标记已读
 # =============================================================================
 
 
@@ -217,7 +217,7 @@ async def mark_read(uuid: str, current: RequiredUser, db: DbSession) -> dict:
 
 
 # =============================================================================
-# Mark all read
+# 全部标记已读
 # =============================================================================
 
 
@@ -240,7 +240,7 @@ async def mark_all_read(current: RequiredUser, db: DbSession) -> dict:
 
 
 # =============================================================================
-# Delete
+# 删除
 # =============================================================================
 
 

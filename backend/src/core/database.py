@@ -1,7 +1,7 @@
-"""Async SQLAlchemy engine + session factory.
+"""异步 SQLAlchemy 引擎与会话工厂。
 
-Skeleton: declares the engine, session factory and `get_db()` dependency.
-Models register themselves on `Base.metadata` via src.models.__init__.
+骨架：声明引擎、会话工厂以及 `get_db()` 依赖。
+模型通过 src.models.__init__ 注册到 `Base.metadata`。
 """
 from collections.abc import AsyncIterator
 
@@ -14,8 +14,8 @@ from sqlalchemy.ext.asyncio import (
 
 from src.core.config import settings
 
-# Imported lazily by src.models.__init__ to register tables.
-from src.models.base import Base  # noqa: F401  (re-exported for callers)
+# 由 src.models.__init__ 延迟导入以注册表。
+from src.models.base import Base  # noqa: F401  （为调用方重新导出）
 
 
 engine: AsyncEngine = create_async_engine(
@@ -36,7 +36,7 @@ AsyncSessionLocal: async_sessionmaker[AsyncSession] = async_sessionmaker(
 
 
 async def get_db() -> AsyncIterator[AsyncSession]:
-    """FastAPI dependency yielding a transactional async session."""
+    """FastAPI 依赖，产生一个事务性的异步 session。"""
     async with AsyncSessionLocal() as session:
         try:
             yield session
@@ -48,8 +48,8 @@ async def get_db() -> AsyncIterator[AsyncSession]:
 
 
 async def init_db() -> None:
-    """Create all tables. Skeleton helper; production will use Alembic."""
-    # Import models so they register on Base.metadata before create_all.
+    """创建所有表。骨架辅助函数；生产环境将使用 Alembic。"""
+    # 导入模型，使其在 create_all 之前注册到 Base.metadata。
     from src import models  # noqa: F401
 
     async with engine.begin() as conn:
@@ -57,5 +57,5 @@ async def init_db() -> None:
 
 
 async def close_db() -> None:
-    """Dispose of the engine connection pool."""
+    """释放引擎连接池。"""
     await engine.dispose()

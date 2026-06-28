@@ -1,10 +1,10 @@
-"""Task domain service — Phase 2 implementation.
+"""任务领域 service —— Phase 2 实现。
 
-Covers:
-- Task CRUD with soft-delete, tag linking, checklist aggregation
-- Batch operations (delete / restore / move / complete) with idempotency
-- Checklist sub-resource CRUD
-- User data isolation (all queries filter by user_uuid)
+包含：
+- 任务 CRUD，支持软删除、标签关联、检查项聚合
+- 批量操作（delete / restore / move / complete），支持幂等
+- 检查项子资源 CRUD
+- 用户数据隔离（所有查询均按 user_uuid 过滤）
 """
 
 from __future__ import annotations
@@ -27,36 +27,36 @@ from src.models.task import Tag, Task, TaskChecklist, TaskTag
 
 logger = get_logger(__name__)
 
-# Idempotency cache TTL (24 hours)
+# 幂等缓存 TTL（24 小时）
 _IDEMPOTENCY_TTL = 86400
 
-# Quadrant center coordinates (urgencyLevel, importanceLevel)
+# 象限中心坐标（urgencyLevel, importanceLevel）
 _QUADRANT_CENTERS = {
-    1: (2, 2),    # Q1: urgent + important
-    2: (-2, 2),   # Q2: not urgent + important
-    3: (2, -2),   # Q3: urgent + not important
-    4: (-2, -2),  # Q4: not urgent + not important
+    1: (2, 2),    # Q1: 紧急 + 重要
+    2: (-2, 2),   # Q2: 不紧急 + 重要
+    3: (2, -2),   # Q3: 紧急 + 不重要
+    4: (-2, -2),  # Q4: 不紧急 + 不重要
 }
 
 
 class TaskService:
-    """All task-related business logic."""
+    """所有与任务相关的业务逻辑。"""
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
     # =========================================================================
-    # Query helpers
+    # 查询辅助
     # =========================================================================
 
     def _task_base_stmt(self, user_uuid: str):
-        """Base select for tasks belonging to user, not soft-deleted."""
+        """用户任务的基础查询（未软删除）。"""
         return select(Task).where(
             Task.user_uuid == user_uuid, Task.deleted_at.is_(None)
         )
 
     async def _get_task_tags(self, task_uuid: str) -> list[Tag]:
-        """Get full tag objects for a task."""
+        """获取任务关联的完整标签对象列表。"""
         stmt = (
             select(Tag)
             .join(
@@ -69,11 +69,10 @@ class TaskService:
         return list(result.scalars().all())
 
     async def _get_checklist_counts(self, task_uuid: str) -> tuple[int, int]:
-        """Return (total, completed) for a task's checklist items.
+        """返回任务检查项的 (总数, 已完成数)。
 
-        Cast the boolean column to Integer before summing — otherwise
-        SQLAlchemy may return a Python bool for single-item sums, which
-        JSON-serialises to ``true`` instead of a number.
+        先将布尔列 cast 为 Integer 再求和 —— 否则 SQLAlchemy 在单条
+        求和时可能返回 Python bool，JSON 序列化时会变成 ``true`` 而非数字。
         """
         from sqlalchemy import cast, Integer as SAInteger
         stmt = select(
@@ -91,7 +90,7 @@ class TaskService:
     async def _validate_tags(
         self, user_uuid: str, tag_uuids: list[str]
     ) -> list[Tag]:
-        """Validate that all tag UUIDs exist and belong to the user (or are presets)."""
+        """校验所有标签 UUID 是否存在且属于该用户（或为预设标签）。"""
         if not tag_uuids:
             return []
         stmt = select(Tag).where(
@@ -113,7 +112,7 @@ class TaskService:
     async def _sync_task_tags(
         self, task_uuid: str, tag_uuids: list[str]
     ) -> None:
-        """Sync TaskTag join table: hard-delete old, insert new."""
+        """同步 TaskTag 关联表：硬删除旧记录，插入新记录。"""
         await self.db.execute(
             delete(TaskTag).where(TaskTag.task_uuid == task_uuid)
         )
@@ -123,7 +122,7 @@ class TaskService:
 
     @staticmethod
     def _parse_date(value: str | date_type | None) -> date_type | None:
-        """Parse ISO date string safely. Accepts pre-parsed date from Pydantic."""
+        """安全解析 ISO 日期字符串，接受 Pydantic 预解析的 date。"""
         if value is None or value == "":
             return None
         if isinstance(value, date_type):
@@ -139,7 +138,7 @@ class TaskService:
 
     @staticmethod
     def _parse_datetime(value: str | None) -> datetime | None:
-        """Parse ISO datetime string safely."""
+        """安全解析 ISO datetime 字符串。"""
         if value is None:
             return None
         try:
@@ -154,7 +153,7 @@ class TaskService:
         total_cl: int = 0,
         completed_cl: int = 0,
     ) -> dict[str, Any]:
-        """Serialize a Task to the detail API response format (tags as objects)."""
+        """将 Task 序列化为详情接口的响应格式（标签为完整对象）。"""
         if tags is None:
             tags = []
         return {
@@ -184,7 +183,7 @@ class TaskService:
         total_cl: int = 0,
         completed_cl: int = 0,
     ) -> dict[str, Any]:
-        """Serialize a Task to the list API response format (tags as UUIDs)."""
+        """将 Task 序列化为列表接口的响应格式（标签为 UUID）。"""
         if tag_uuids is None:
             tag_uuids = []
         return {
@@ -206,7 +205,7 @@ class TaskService:
         }
 
     # =========================================================================
-    # Task CRUD
+    # 任务 CRUD
     # =========================================================================
 
     async def list_tasks(
@@ -219,7 +218,7 @@ class TaskService:
         page: int = 1,
         page_size: int = 20,
     ) -> dict[str, Any]:
-        """Paginated task list with filters."""
+        """分页查询任务列表，支持筛选。"""
         stmt = self._task_base_stmt(user_uuid)
 
         if since is not None:
@@ -233,18 +232,18 @@ class TaskService:
         if q:
             stmt = stmt.where(Task.title.ilike(f"%{q}%"))
 
-        # Count
+        # 计数
         count_stmt = select(func.count()).select_from(stmt.subquery())
         total = (await self.db.execute(count_stmt)).scalar() or 0
 
-        # Paginate
+        # 分页
         stmt = stmt.order_by(Task.sort_order.asc(), Task.created_at.desc())
         stmt = stmt.limit(page_size).offset((page - 1) * page_size)
         rows = (await self.db.execute(stmt)).scalars().all()
 
         items = []
         for task in rows:
-            # Get tag UUIDs for list view
+            # 获取列表视图需要的标签 UUID
             tag_stmt = select(TaskTag.tag_uuid).where(
                 TaskTag.task_uuid == task.uuid,
             )
@@ -267,7 +266,7 @@ class TaskService:
         }
 
     async def get_task(self, uuid: str, user_uuid: str) -> dict[str, Any]:
-        """Get task detail with full tag objects."""
+        """获取任务详情（含完整标签对象）。"""
         stmt = self._task_base_stmt(user_uuid).where(Task.uuid == uuid)
         task = (await self.db.execute(stmt)).scalar_one_or_none()
         if task is None:
@@ -280,7 +279,7 @@ class TaskService:
     async def create_task(
         self, user_uuid: str, data: dict[str, Any]
     ) -> dict[str, Any]:
-        """Create a new task with optional tags."""
+        """创建新任务，可选关联标签。"""
         title = (data.get("title") or "").strip()
         if not title:
             raise ValidationException(
@@ -338,7 +337,7 @@ class TaskService:
     async def update_task(
         self, uuid: str, user_uuid: str, data: dict[str, Any]
     ) -> dict[str, Any]:
-        """Update task fields (partial)."""
+        """更新任务字段（部分更新）。"""
         stmt = self._task_base_stmt(user_uuid).where(Task.uuid == uuid)
         task = (await self.db.execute(stmt)).scalar_one_or_none()
         if task is None:
@@ -415,7 +414,7 @@ class TaskService:
             task.remind_offset_minutes = data["remindOffsetMinutes"]
             changed = True
 
-        # Tags update
+        # 标签更新
         tag_key = "tags" if "tags" in data else ("tag_uuids" if "tag_uuids" in data else None)
         if tag_key:
             tag_uuids = data[tag_key] or []
@@ -432,7 +431,7 @@ class TaskService:
         return self._task_to_out(task, tags, total_cl, completed_cl)
 
     async def delete_task(self, uuid: str, user_uuid: str) -> None:
-        """Soft-delete a task."""
+        """软删除任务。"""
         stmt = self._task_base_stmt(user_uuid).where(Task.uuid == uuid)
         task = (await self.db.execute(stmt)).scalar_one_or_none()
         if task is None:
@@ -443,7 +442,7 @@ class TaskService:
     async def restore_task(
         self, uuid: str, user_uuid: str
     ) -> dict[str, Any]:
-        """Restore a soft-deleted task."""
+        """恢复软删除的任务。"""
         stmt = select(Task).where(
             Task.uuid == uuid,
             Task.user_uuid == user_uuid,
@@ -470,7 +469,7 @@ class TaskService:
         }
 
     # =========================================================================
-    # Batch operations
+    # 批量操作
     # =========================================================================
 
     async def batch_tasks(
@@ -481,7 +480,7 @@ class TaskService:
         idempotency_key: str,
         quadrant: int | None = None,
     ) -> dict[str, Any]:
-        """Batch operation with idempotency."""
+        """批量操作，支持幂等。"""
         if not task_uuids:
             raise ValidationException(
                 "任务 UUID 列表不能为空",
@@ -503,7 +502,7 @@ class TaskService:
                 detail={"action": "action 为 move 时必须指定 quadrant"},
             )
 
-        # Idempotency check via Redis
+        # 通过 Redis 进行幂等性检查
         redis = get_redis()
         idem_key = build_key("idempotency", idempotency_key)
         cached = await redis.get(idem_key)
@@ -519,7 +518,7 @@ class TaskService:
                 detail={"taskUuids": "单次批量操作最多 200 个任务"},
             )
 
-        # Find matching tasks owned by user
+        # 查找属于该用户的匹配任务
         stmt = select(Task).where(
             Task.uuid.in_(task_uuids),
             Task.user_uuid == user_uuid,
@@ -565,7 +564,7 @@ class TaskService:
         if not_found:
             result["notFoundUuids"] = not_found
 
-        # Cache idempotency result (24h)
+        # 缓存幂等结果（24 小时）
         await redis.set(
             idem_key, json.dumps(result, default=str), ex=_IDEMPOTENCY_TTL
         )
@@ -573,11 +572,11 @@ class TaskService:
         return result
 
     # =========================================================================
-    # Checklist
+    # 检查项
     # =========================================================================
 
     async def _get_task_or_404(self, task_uuid: str, user_uuid: str) -> Task:
-        """Get task by UUID and user, or raise TASK_NOT_FOUND."""
+        """根据 UUID 与用户获取任务，不存在则抛 TASK_NOT_FOUND。"""
         stmt = select(Task).where(
             Task.uuid == task_uuid,
             Task.user_uuid == user_uuid,
@@ -591,7 +590,7 @@ class TaskService:
     async def list_checklist(
         self, task_uuid: str, user_uuid: str
     ) -> dict[str, Any]:
-        """List checklist items for a task."""
+        """列出任务的检查项列表。"""
         await self._get_task_or_404(task_uuid, user_uuid)
 
         stmt = (
@@ -631,7 +630,7 @@ class TaskService:
     async def create_checklist_item(
         self, task_uuid: str, user_uuid: str, data: dict[str, Any]
     ) -> dict[str, Any]:
-        """Create a checklist item."""
+        """创建检查项。"""
         await self._get_task_or_404(task_uuid, user_uuid)
 
         title = (data.get("title") or "").strip()
@@ -668,7 +667,7 @@ class TaskService:
         user_uuid: str,
         data: dict[str, Any],
     ) -> dict[str, Any]:
-        """Update a checklist item."""
+        """更新检查项。"""
         await self._get_task_or_404(task_uuid, user_uuid)
 
         stmt = select(TaskChecklist).where(
@@ -711,7 +710,7 @@ class TaskService:
     async def delete_checklist_item(
         self, task_uuid: str, item_uuid: str, user_uuid: str
     ) -> None:
-        """Soft-delete a checklist item."""
+        """软删除检查项。"""
         await self._get_task_or_404(task_uuid, user_uuid)
 
         stmt = select(TaskChecklist).where(

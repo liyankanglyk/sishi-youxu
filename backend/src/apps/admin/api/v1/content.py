@@ -1,16 +1,16 @@
-"""Admin content management endpoints — tasks and tags.
+"""管理后台内容管理端点 —— 任务和标签。
 
-Implemented:
-- GET /admin/tasks — paginated task list with filters
-- GET /admin/tasks/{uuid} — task detail with tags, checklist, user info
-- DELETE /admin/tasks/{uuid} — soft-delete task
-- POST /admin/tasks/batch — batch delete/restore
-- GET /admin/tags — paginated tag list with filters
-- GET /admin/tags/{uuid} — tag detail with task count and users
-- PATCH /admin/tags/{uuid} — update tag
-- DELETE /admin/tags/{uuid} — soft-delete tag
-- GET /admin/users/{uuid}/tasks — user's task list
-- GET /admin/users/{uuid}/tags — user's tag list
+已实现：
+- GET /admin/tasks — 带筛选条件的任务分页列表
+- GET /admin/tasks/{uuid} — 任务详情（标签、检查项、用户信息）
+- DELETE /admin/tasks/{uuid} — 软删除任务
+- POST /admin/tasks/batch — 批量删除 / 恢复任务
+- GET /admin/tags — 带筛选条件的标签分页列表
+- GET /admin/tags/{uuid} — 标签详情（任务数、使用者）
+- PATCH /admin/tags/{uuid} — 更新标签
+- DELETE /admin/tags/{uuid} — 软删除标签
+- GET /admin/users/{uuid}/tasks — 用户的任务列表
+- GET /admin/users/{uuid}/tags — 用户的标签列表
 """
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ def _service(db: DbSession, request: Request | None = None) -> AdminService:
 
 
 # =============================================================================
-# Task Management
+# 任务管理
 # =============================================================================
 
 
@@ -140,7 +140,7 @@ async def admin_batch_tasks(
 
 
 # =============================================================================
-# Tag Management
+# 标签管理
 # =============================================================================
 
 
@@ -211,7 +211,7 @@ async def admin_delete_tag(uuid: str, db: DbSession, admin: RequireAdmin, reques
 
 
 # =============================================================================
-# User Data Views
+# 用户数据视图
 # =============================================================================
 
 

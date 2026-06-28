@@ -7,14 +7,14 @@ import { adminApi, type UserDetail, type AdminTaskListItem, type AdminTagListIte
 const route = useRoute()
 const router = useRouter()
 
-// ── User info ──
+// ── 用户信息 ──
 const user = ref<UserDetail | null>(null)
 const loading = ref(false)
 
-// ── Tabs ──
+// ── 标签页 ──
 const activeTab = ref('info')
 
-// Tasks
+// 任务
 const tasks = ref<AdminTaskListItem[]>([])
 const taskTotal = ref(0)
 const taskPage = ref(1)
@@ -23,7 +23,7 @@ const taskLoading = ref(false)
 const taskQuadrant = ref<number | null>(null)
 const taskCompleted = ref<boolean | null>(null)
 
-// Tags
+// 标签
 const tags = ref<AdminTagListItem[]>([])
 const tagTotal = ref(0)
 const tagPage = ref(1)
@@ -43,7 +43,7 @@ const statusOptions = [
   { label: '未完成', value: false },
 ]
 
-// ── User ──
+// ── 用户操作 ──
 
 onMounted(async () => {
   const uuid = route.params.uuid as string
@@ -92,7 +92,7 @@ async function handleForceLogout() {
   }
 }
 
-// ── Reset Password ──
+// ── 重置密码 ──
 const resetPwDialogVisible = ref(false)
 const resetPwNew = ref('')
 const resetPwConfirm = ref('')
@@ -126,7 +126,7 @@ async function handleResetPassword() {
   } finally { resetPwSaving.value = false }
 }
 
-// ── Tasks ──
+// ── 任务 ──
 
 async function fetchTasks() {
   if (!user.value) return
@@ -150,7 +150,7 @@ function handleTaskSearch() {
   fetchTasks()
 }
 
-// ── Tags ──
+// ── 标签 ──
 
 async function fetchTags() {
   if (!user.value) return
@@ -167,14 +167,14 @@ async function fetchTags() {
   } finally { tagLoading.value = false }
 }
 
-// ── Handle tab switch (lazy fetch) ──
+// ── 标签页切换处理（懒加载） ──
 
 function onTabChange(name: string | number) {
   if (name === 'tasks' && !tasks.value.length) fetchTasks()
   else if (name === 'tags' && !tags.value.length) fetchTags()
 }
 
-// ── Helpers ──
+// ── 辅助函数 ──
 
 function quadrantLabel(urgency: number, importance: number): string {
   if (importance > 0 && urgency > 0) return 'Q1'
@@ -201,7 +201,7 @@ function formatTime(iso: string) {
     <template v-if="user">
       <el-tabs v-model="activeTab" style="margin-top:1rem" @tab-change="onTabChange">
         <!-- ================================================================ -->
-        <!-- Tab 1: Basic Info -->
+        <!-- 标签页 1：基本信息 -->
         <!-- ================================================================ -->
         <el-tab-pane label="基本信息" name="info">
           <el-card header="基本信息">
@@ -244,7 +244,7 @@ function formatTime(iso: string) {
         </el-tab-pane>
 
         <!-- ================================================================ -->
-        <!-- Tab 2: Tasks -->
+        <!-- 标签页 2：任务 -->
         <!-- ================================================================ -->
         <el-tab-pane label="任务" name="tasks">
           <div class="tab-toolbar">
@@ -307,7 +307,7 @@ function formatTime(iso: string) {
         </el-tab-pane>
 
         <!-- ================================================================ -->
-        <!-- Tab 3: Tags -->
+        <!-- 标签页 3：标签 -->
         <!-- ================================================================ -->
         <el-tab-pane label="标签" name="tags">
           <el-table :data="tags" v-loading="tagLoading" stripe size="small">
@@ -344,7 +344,7 @@ function formatTime(iso: string) {
       </el-tabs>
     </template>
 
-    <!-- Reset Password Dialog -->
+    <!-- 重置密码弹窗 -->
     <el-dialog v-model="resetPwDialogVisible" title="重置用户密码" width="420px" :close-on-click-modal="false">
       <el-form label-width="100px" @submit.prevent="handleResetPassword">
         <el-form-item label="新密码">

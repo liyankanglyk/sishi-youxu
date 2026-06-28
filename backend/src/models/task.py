@@ -1,4 +1,4 @@
-"""Task-domain model skeletons (task, tag, task_tag, checklist).
+"""任务域模型骨架（任务、标签、任务标签关联、检查项）。
 
 设计要点：
 
@@ -80,12 +80,11 @@ class Tag(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
 
 
 class TaskTag(Base, TimestampMixin):
-    """Many-to-many join between tasks and tags.
+    """任务与标签之间的多对多关联表。
 
-    Hard-deleted (no soft-delete): the composite PK (task_uuid, tag_uuid)
-    must remain globally unique, and re-associating the same pair after a
-    removal must succeed — both rules break under MySQL if a deleted_at
-    column co-exists with the PK.
+    硬删除（不使用软删除）：复合主键 (task_uuid, tag_uuid) 必须保持全局唯一，
+    且删除后再次关联同一对组合必须成功 —— MySQL 下若 deleted_at 与主键共存，
+    这两条规则都会被打破。
     """
 
     __tablename__ = "sishiyouxu_task_tag"

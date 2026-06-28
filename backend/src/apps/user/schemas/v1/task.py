@@ -1,7 +1,7 @@
-"""Task DTOs — camelCase field names matching API spec.
+"""任务相关 DTO —— 字段采用驼峰命名以匹配 API 规范。
 
-All request/response models use camelCase for field names, consistent with
-the API documentation and the JSON payloads that the service layer expects.
+所有请求/响应模型都使用驼峰命名，与 API 文档及 service 层期望的
+JSON 负载保持一致。
 """
 
 from __future__ import annotations
@@ -13,12 +13,12 @@ from pydantic import BaseModel, Field
 
 
 # =============================================================================
-# Request DTOs
+# 请求 DTO
 # =============================================================================
 
 
 class TaskCreateRequest(BaseModel):
-    """Create a new task in the quadrant canvas."""
+    """在四象限画布中创建新任务。"""
 
     title: str = Field(..., min_length=1, max_length=200, description="任务标题")
     urgencyLevel: int = Field(default=0, ge=-4, le=4, description="紧急度 -4..4 (正数=紧急)")
@@ -33,7 +33,7 @@ class TaskCreateRequest(BaseModel):
 
 
 class TaskUpdateRequest(BaseModel):
-    """Partial update for a task. All fields are optional."""
+    """任务的部分更新，所有字段均为可选。"""
 
     title: Optional[str] = Field(default=None, min_length=1, max_length=200, description="任务标题")
     urgencyLevel: Optional[int] = Field(default=None, ge=-4, le=4, description="紧急度")
@@ -53,7 +53,7 @@ BatchActionLiteral = Literal["delete", "restore", "move", "complete"]
 
 
 class BatchActionRequest(BaseModel):
-    """Batch operation on multiple tasks with idempotency support."""
+    """对多个任务执行批量操作，支持幂等。"""
 
     action: BatchActionLiteral = Field(..., description="操作类型：delete / restore / move / complete")
     taskUuids: list[str] = Field(..., min_length=1, max_length=200, description="任务 UUID 列表")
@@ -62,12 +62,12 @@ class BatchActionRequest(BaseModel):
 
 
 # =============================================================================
-# Checklist DTOs
+# 检查项 DTO
 # =============================================================================
 
 
 class ChecklistCreateRequest(BaseModel):
-    """Add a checklist item to a task."""
+    """为任务添加检查项。"""
 
     title: str = Field(..., min_length=1, max_length=255, description="检查项标题")
     completed: bool = Field(default=False, description="完成状态")
@@ -75,7 +75,7 @@ class ChecklistCreateRequest(BaseModel):
 
 
 class ChecklistUpdateRequest(BaseModel):
-    """Partial update for a checklist item."""
+    """检查项的部分更新。"""
 
     title: Optional[str] = Field(default=None, min_length=1, max_length=255, description="检查项标题")
     completed: Optional[bool] = Field(default=None, description="完成状态")
@@ -83,7 +83,7 @@ class ChecklistUpdateRequest(BaseModel):
 
 
 # =============================================================================
-# Response DTOs (kept for typed response patterns, routes use dict for now)
+# 响应 DTO（保留以支持类型化响应模式，目前路由仍使用 dict）
 # =============================================================================
 
 

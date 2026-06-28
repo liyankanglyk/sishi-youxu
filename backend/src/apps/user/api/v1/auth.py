@@ -1,17 +1,17 @@
-"""User authentication endpoints — Phase 3 implementation.
+"""用户认证相关端点 —— Phase 3 实现。
 
-Implemented (all real business via AuthService):
-- POST /auth/tokens — login (password / phone_sms / email_code)
-- POST /auth/tokens/refresh — refresh access token (旧 token 立即撤销)
-- POST /auth/tokens/logout — revoke single refresh token (幂等)
-- POST /auth/tokens/logout-all — revoke all refresh tokens for current user
-- POST /auth/wechat/login — WeChat mini-program code2session + JWT
-- POST /auth/ws-ticket — issue one-time WS auth ticket (60s TTL, Redis)
-- GET  /auth/login-methods — list enabled login providers
-- GET  /auth/captcha / POST /auth/captcha/verify — SVG captcha (5min TTL)
-- POST /auth/sms/send / POST /auth/sms/login — SMS code (mock, 60s 限流)
-- POST /auth/email/send / POST /auth/email/login — email code (mock)
-- POST /auth/password/reset-request / POST /auth/password/reset — reset password
+已实现的功能（全部走真实业务 AuthService）：
+- POST /auth/tokens — 登录（password / phone_sms / email_code）
+- POST /auth/tokens/refresh — 刷新 access token（旧 token 立即撤销）
+- POST /auth/tokens/logout — 撤销单个 refresh token（幂等）
+- POST /auth/tokens/logout-all — 撤销当前用户所有 refresh token
+- POST /auth/wechat/login — 微信小程序 code2session + JWT
+- POST /auth/ws-ticket — 签发一次性 WebSocket 鉴权 ticket（60s TTL，Redis）
+- GET  /auth/login-methods — 列出已开启的登录方式
+- GET  /auth/captcha / POST /auth/captcha/verify — SVG 图形验证码（5min TTL）
+- POST /auth/sms/send / POST /auth/sms/login — 短信验证码（mock，60s 限流）
+- POST /auth/email/send / POST /auth/email/login — 邮箱验证码（mock）
+- POST /auth/password/reset-request / POST /auth/password/reset — 重置密码
 
 所有 endpoint 不带 `response_model`，让 `ok()` 包络完整返回。
 """

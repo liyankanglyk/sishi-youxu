@@ -100,7 +100,7 @@ async function handleLogin() {
     #f8fafc;
 }
 
-/* Background shapes */
+/* 背景装饰形状 */
 .login-bg {
   position: absolute;
   inset: 0;
@@ -131,7 +131,7 @@ async function handleLogin() {
   left: -120px;
 }
 
-/* Card */
+/* 卡片 */
 .login-card {
   position: relative;
   z-index: 1;
@@ -167,7 +167,7 @@ async function handleLogin() {
   margin: 0;
 }
 
-/* Form */
+/* 表单 */
 .login-form {
   display: flex;
   flex-direction: column;
@@ -218,7 +218,7 @@ async function handleLogin() {
   color: #cbd5e1;
 }
 
-/* Error */
+/* 错误提示 */
 .form-error {
   display: flex;
   align-items: center;
@@ -230,7 +230,7 @@ async function handleLogin() {
   color: #dc2626;
 }
 
-/* Button */
+/* 按钮 */
 .login-btn {
   margin-top: 4px;
   width: 100%;

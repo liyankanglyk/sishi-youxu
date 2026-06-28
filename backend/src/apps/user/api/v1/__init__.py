@@ -1,4 +1,4 @@
-"""Aggregate all user-facing routers under a single APIRouter."""
+"""将所有用户端路由聚合到同一个 APIRouter 下。"""
 from fastapi import APIRouter
 
 from src.apps.user.api.v1 import auth, feedback, notifications, sync, tags, tasks, users

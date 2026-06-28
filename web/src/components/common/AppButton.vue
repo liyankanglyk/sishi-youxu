@@ -50,12 +50,12 @@ defineProps<{
   width: 100%;
 }
 
-/* Sizes */
+/* 尺寸 */
 .btn-sm { padding: 4px 12px; font-size: 13px; height: 30px; }
 .btn-md { padding: 8px 18px; font-size: 14px; height: 38px; }
 .btn-lg { padding: 10px 24px; font-size: 16px; height: 44px; }
 
-/* Variants */
+/* 变体 */
 .btn-primary {
   background: var(--c-brand-500);
   color: #fff;

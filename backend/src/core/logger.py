@@ -1,6 +1,6 @@
-"""Centralized logging configuration.
+"""集中式日志配置。
 
-Skeleton: text or JSON format, configurable via settings.LOG_FORMAT / LOG_LEVEL.
+骨架：支持文本或 JSON 格式，通过 settings.LOG_FORMAT / LOG_LEVEL 配置。
 """
 import logging
 import sys
@@ -9,11 +9,11 @@ from src.core.config import settings
 
 
 def setup_logging() -> None:
-    """Configure root logging. Called once during application startup."""
+    """配置根日志记录器，在应用启动时调用一次。"""
     level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
 
     if settings.LOG_FORMAT == "json":
-        # Reserved for production; skeleton keeps it simple.
+        # 预留给生产环境；骨架阶段保持简洁。
         fmt = '{"time":"%(asctime)s","level":"%(levelname)s","name":"%(name)s","msg":"%(message)s"}'
     else:
         fmt = "%(asctime)s | %(levelname)-7s | %(name)s | %(message)s"
@@ -26,11 +26,11 @@ def setup_logging() -> None:
     root.addHandler(handler)
     root.setLevel(level)
 
-    # Tame noisy libraries
+    # 抑制嘈杂的第三方库日志
     logging.getLogger("uvicorn.access").setLevel(logging.INFO)
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING if not settings.DB_ECHO else logging.INFO)
 
 
 def get_logger(name: str) -> logging.Logger:
-    """Return a module-level logger."""
+    """返回一个模块级 logger。"""
     return logging.getLogger(name)

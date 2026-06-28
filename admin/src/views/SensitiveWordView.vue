@@ -9,7 +9,7 @@ const page = ref(1)
 const pageSize = ref(20)
 const loading = ref(false)
 
-// Dialog
+// 弹窗相关
 const dialogVisible = ref(false)
 const dialogLoading = ref(false)
 const editingItem = ref<SensitiveWord | null>(null)
@@ -94,7 +94,7 @@ async function handleDelete(item: SensitiveWord) {
   }
 }
 
-// File import
+// 文件导入
 const fileInput = ref<HTMLInputElement>()
 
 function handleImportClick() {
@@ -170,7 +170,7 @@ onMounted(fetch)
       @current-change="fetch"
     />
 
-    <!-- Add/Edit Dialog -->
+    <!-- 添加/编辑敏感词弹窗 -->
     <el-dialog
       v-model="dialogVisible"
       :title="editingItem ? '编辑敏感词' : '添加敏感词'"

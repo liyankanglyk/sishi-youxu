@@ -1,4 +1,4 @@
-"""Admin content management DTOs — camelCase field names matching API spec."""
+"""管理后台内容管理 DTO —— 字段名采用 camelCase 以匹配 API 规范。"""
 
 from __future__ import annotations
 

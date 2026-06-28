@@ -1,7 +1,7 @@
-"""Unified response envelope per docs/03-技术架构/API接口文档.md.
+"""统一响应外壳，遵循 docs/03-技术架构/API接口文档.md。
 
-Success: { "success": true, "data": ... }
-Failure: { "success": false, "error": { "code": "...", "message": "...", "detail": {} } }
+成功：{ "success": true, "data": ... }
+失败：{ "success": false, "error": { "code": "...", "message": "...", "detail": {} } }
 """
 from typing import Any
 
@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 
 class Meta(BaseModel):
-    """Pagination metadata embedded inside `data` for list endpoints."""
+    """列表端点嵌入 `data` 内的分页元数据。"""
 
     total: int = 0
     page: int = 1
@@ -34,12 +34,12 @@ class ErrorResponse(BaseModel):
 
 
 def ok(data: Any = None) -> dict[str, Any]:
-    """Wrap a payload as a success response."""
+    """将载荷包装为成功响应。"""
     return {"success": True, "data": data}
 
 
 def fail(code: str, message: str, detail: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Wrap an error as the spec'd failure envelope."""
+    """将错误包装为规范定义的失败响应外壳。"""
     return {
         "success": False,
         "error": {"code": code, "message": message, "detail": detail or {}},

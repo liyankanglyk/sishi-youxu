@@ -1,4 +1,4 @@
-"""Shared test cleanup utilities.
+"""测试共用的清理工具。
 
 集中处理测试产生的 User / AuthIdentity / RefreshToken / 头像本地文件清理，
 供 conftest.py 与各测试模块复用，避免测试数据污染 dev DB。

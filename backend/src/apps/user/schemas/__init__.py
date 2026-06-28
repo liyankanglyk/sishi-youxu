@@ -1,4 +1,4 @@
-"""User-facing Pydantic DTOs."""
+"""面向用户端的 Pydantic DTO。"""
 from src.apps.user.schemas.v1.auth import (
     LoginRequest,
     LoginResponse,

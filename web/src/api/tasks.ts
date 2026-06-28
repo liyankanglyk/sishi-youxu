@@ -95,7 +95,7 @@ export const taskApi = {
     return apiClient.post('/tasks/batch', data)
   },
 
-  // ── Checklist ──
+  // ── 检查项 ──
   listChecklist(taskUuid: string) {
     return apiClient.get<PaginatedResponse<ChecklistItem>>(`/tasks/${taskUuid}/checklist`)
   },

@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { taskApi, type TaskCreatePayload, type TaskUpdatePayload, type TaskOut } from '@/api/tasks'
 import { tagApi, type TagOut } from '@/api/tags'
 
-/* ===== History ===== */
+/* ===== 历史记录 ===== */
 interface HistoryEntry {
   description: string
   undo: () => Promise<void>
@@ -11,7 +11,7 @@ interface HistoryEntry {
 }
 const MAX_HISTORY = 50
 
-/* ===== Recurrence helpers ===== */
+/* ===== 重复任务辅助函数 ===== */
 export function getNextDueDate(dueDate: string, recurrence: string): string | null {
   if (!dueDate || !recurrence) return null
   const base = new Date(dueDate)
@@ -40,10 +40,10 @@ export function getNextDueDate(dueDate: string, recurrence: string): string | nu
   return next.toISOString().slice(0, 10)
 }
 
-/* ===== Position helpers ===== */
+/* ===== 坐标辅助函数 ===== */
 export function getQuadrant(urgencyLevel: number, importanceLevel: number): string {
-  // urgencyLevel = posX axis (right = urgent, positive)
-  // importanceLevel = posY axis (top = important, positive)
+  // urgencyLevel = posX 轴（右侧 = 紧急，取正值）
+  // importanceLevel = posY 轴（顶部 = 重要，取正值）
   const imp = importanceLevel >= 0 ? 'high' : 'low'
   const urg = urgencyLevel >= 0 ? 'high' : 'low'
   if (imp === 'high' && urg === 'high') return 'Q1'
@@ -77,7 +77,7 @@ export const DUE_STATUS_CONFIG: Record<string, { color: string; bg: string; labe
   none:      { color: '', bg: '', label: '' },
 }
 
-/** Alias for TaskOut used in canvas / list rendering. */
+/** TaskOut 的别名，用于象限画布 / 列表渲染。 */
 export type TaskEx = TaskOut
 
 export const useTaskStore = defineStore('task', () => {
@@ -86,31 +86,31 @@ export const useTaskStore = defineStore('task', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  // UI state
+  // UI 状态
   const searchQuery = ref('')
   const tagFilter = ref<string[]>([])
   const dueFilter = ref<'all' | 'overdue' | 'today' | 'thisWeek' | 'thisMonth'>('all')
   const selectedQuadrant = ref<string | null>(null)
-  // Restore density preference; default to compact on mobile
+  // 恢复密度偏好；移动端默认 compact
   const viewDensity = ref<'compact' | 'standard' | 'detailed'>(
     (localStorage.getItem('sishi-view-density') as any) ||
     (window.matchMedia?.('(max-width: 767px)').matches ? 'compact' : 'standard'),
   )
-  // Keep a separate desktop preference so mobile auto-compact doesn't overwrite it
+  // 单独保存桌面端偏好，避免移动端自动 compact 时覆盖
   const _desktopDensity = ref<'compact' | 'standard' | 'detailed'>(
     (localStorage.getItem('sishi-view-density-desktop') as any) || viewDensity.value,
   )
 
-  // Auto-switch density on viewport change
+  // 视口变化时自动切换密度
   if (window.matchMedia) {
     window.matchMedia('(max-width: 767px)').addEventListener('change', (e) => {
       if (e.matches) {
-        // Enter mobile: save current pref and force compact
+        // 进入移动端：保存当前偏好并强制 compact
         _desktopDensity.value = viewDensity.value
         localStorage.setItem('sishi-view-density-desktop', _desktopDensity.value)
         viewDensity.value = 'compact'
       } else if (viewDensity.value === 'compact') {
-        // Exit mobile: restore desktop preference
+        // 离开移动端：恢复桌面端偏好
         viewDensity.value = _desktopDensity.value
       }
     })
@@ -122,17 +122,17 @@ export const useTaskStore = defineStore('task', () => {
   const createImportanceLevel = ref(0)
   const celebrationTitle = ref<string | null>(null)
 
-  // Multi-select
+  // 多选
   const selectedTaskIds = ref<string[]>([])
   const isSelectMode = computed(() => selectedTaskIds.value.length > 0)
 
-  // Focus Today mode
+  // 今日焦点模式
   const focusToday = ref(false)
 
-  // Generated next task mapping (taskUuid -> generatedNextUuid) for recurrence cleanup
+  // 已生成的下一个任务的映射（taskUuid -> generatedNextUuid），用于重复任务清理
   const generatedNextMap = ref<Map<string, string>>(new Map())
 
-  // History
+  // 历史记录
   const undoStack = ref<HistoryEntry[]>([])
   const redoStack = ref<HistoryEntry[]>([])
 
@@ -141,11 +141,11 @@ export const useTaskStore = defineStore('task', () => {
     redoStack.value = []
   }
 
-  // ── Filtered tasks (search + tag + due + focusToday) ──
+  // ── 过滤后的任务（搜索 + 标签 + 截止日期 + focusToday） ──
   const filteredTasks = computed(() => {
     let result = serverTasks.value
 
-    // Focus Today: only show overdue/today/thisWeek/thisMonth, hide completed
+    // 今日焦点：仅展示已过期/今天/本周/本月，并隐藏已完成
     if (focusToday.value) {
       result = result.filter(t => {
         if (t.completed) return false
@@ -154,7 +154,7 @@ export const useTaskStore = defineStore('task', () => {
       })
     }
 
-    // Always exclude completed tasks from quadrant canvas
+    // 在象限画布上始终排除已完成任务
     result = result.filter(t => !t.completed)
 
     if (selectedQuadrant.value) {
@@ -187,7 +187,7 @@ export const useTaskStore = defineStore('task', () => {
     return result
   })
 
-  /** Whether a non-completed task should be dimmed (focusToday on & task not urgent). */
+  /** 当未完成任务是否应当被置灰（focusToday 开启且任务不在紧迫范围）。 */
   const isDimmed = (task: TaskOut): boolean => {
     if (!focusToday.value) return false
     if (task.completed) return false
@@ -212,7 +212,7 @@ export const useTaskStore = defineStore('task', () => {
 
   const completedTasks = computed(() => serverTasks.value.filter(t => t.completed))
 
-  // ── Data loading ──
+  // ── 数据加载 ──
   async function fetchFromServer() {
     loading.value = true
     error.value = null
@@ -323,10 +323,10 @@ export const useTaskStore = defineStore('task', () => {
       return
     }
 
-    // ── Recurrence: auto-generate next instance on complete / clean up on reopen ──
+    // ── 重复任务：完成时自动生成下一个实例；取消完成时清理 ──
     let generatedUuid: string | null = null
     if (!wasCompleted && task.recurrence && task.dueDate) {
-      // Completing a recurring task → generate next instance
+      // 完成重复任务 → 生成下一期实例
       const nextDue = getNextDueDate(task.dueDate, task.recurrence)
       if (nextDue) {
         try {
@@ -348,15 +348,15 @@ export const useTaskStore = defineStore('task', () => {
               generatedNextMap.value.set(uuid, data.uuid)
             }
           }
-        } catch { /* next-instance creation is best-effort */ }
+        } catch { /* 下一期实例的创建是尽力而为 */ }
       }
     } else if (wasCompleted) {
-      // Reopening a recurring task → clean up generated next instance
+      // 取消完成重复任务 → 清理已生成的下一期实例
       const nextUuid = generatedNextMap.value.get(uuid)
       if (nextUuid) {
         try {
           await taskApi.delete(nextUuid)
-        } catch { /* already deleted */ }
+        } catch { /* 已经删除 */ }
         serverTasks.value = serverTasks.value.filter(t => t.uuid !== nextUuid)
         generatedNextMap.value.delete(uuid)
       }
@@ -373,9 +373,9 @@ export const useTaskStore = defineStore('task', () => {
         const i = serverTasks.value.findIndex(t => t.uuid === uuid)
         if (i >= 0) serverTasks.value[i] = { ...serverTasks.value[i], completed: wasCompleted, completedAt: wasCompletedAt }
         await taskApi.update(uuid, { completed: wasCompleted, completedAt: wasCompletedAt })
-        // Clean up generated next instance
+        // 清理已生成的下一期实例
         if (generatedUuid) {
-          try { await taskApi.delete(generatedUuid) } catch { /* ignore */ }
+          try { await taskApi.delete(generatedUuid) } catch { /* 忽略 */ }
           serverTasks.value = serverTasks.value.filter(t => t.uuid !== generatedUuid)
           generatedNextMap.value.delete(uuid)
         }
@@ -416,7 +416,7 @@ export const useTaskStore = defineStore('task', () => {
     })
   }
 
-  // ── Multi-select ──
+  // ── 多选 ──
   function toggleSelectTask(uuid: string) {
     const i = selectedTaskIds.value.indexOf(uuid)
     if (i >= 0) selectedTaskIds.value.splice(i, 1)
@@ -496,7 +496,7 @@ export const useTaskStore = defineStore('task', () => {
     URL.revokeObjectURL(url)
   }
 
-  // ── Filters ──
+  // ── 过滤器 ──
   function setSearchQuery(q: string) { searchQuery.value = q }
   function setQuadrantFilter(q: string | null) { selectedQuadrant.value = q }
   function toggleTagFilter(tagId: string) {

@@ -1,4 +1,4 @@
-"""Admin user-management endpoints — Phase 1 implementation."""
+"""管理后台用户管理端点 —— Phase 1 实现。"""
 
 from __future__ import annotations
 
@@ -126,7 +126,7 @@ async def admin_export_users(db: DbSession, _admin: RequireAdmin) -> Response:
     )
 
 
-# ── Me endpoint ──
+# ── 当前管理员相关端点 ──
 me_router = APIRouter(prefix="/admin/users", tags=["admin-users"])
 
 

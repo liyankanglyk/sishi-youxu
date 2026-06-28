@@ -1,4 +1,4 @@
-"""v1 admin schemas aggregator."""
+"""v1 管理后台 schemas 聚合器。"""
 
 from src.apps.admin.schemas.v1.admin import (
     AdminConfigUpdateRequest,

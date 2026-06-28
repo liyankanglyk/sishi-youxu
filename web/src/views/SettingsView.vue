@@ -16,7 +16,7 @@ const taskStore = useTaskStore()
 const toast = useToast()
 const notif = useNotification(() => taskStore.serverTasks)
 
-// ── Tags ──
+// ── 标签 ──
 const tags = ref<TagOut[]>([])
 const tagsLoading = ref(false)
 const tagDialogVisible = ref(false)
@@ -92,7 +92,7 @@ async function deleteTag(tag: TagOut) {
   }
 }
 
-// ── Password ──
+// ── 密码 ──
 const pwOld = ref('')
 const pwNew = ref('')
 const pwConfirm = ref('')
@@ -127,7 +127,7 @@ async function handleChangePassword() {
   } finally { pwSaving.value = false }
 }
 
-// ── Auth ──
+// ── 退出登录 ──
 async function handleLogout() {
   await auth.logout()
   router.push('/login')
@@ -140,7 +140,7 @@ onMounted(fetchTags)
   <div class="settings-page">
     <h1 class="page-title">设置</h1>
 
-    <!-- Account -->
+    <!-- 账号 -->
     <section class="card">
       <div class="card-header">
         <h2 class="section-title">账号信息</h2>
@@ -158,7 +158,7 @@ onMounted(fetchTags)
       </div>
     </section>
 
-    <!-- Change Password -->
+    <!-- 修改密码 -->
     <section class="card">
       <div class="card-header">
         <h2 class="section-title">修改密码</h2>
@@ -183,7 +183,7 @@ onMounted(fetchTags)
       </form>
     </section>
 
-    <!-- Tags -->
+    <!-- 标签 -->
     <section class="card">
       <div class="card-header">
         <h2 class="section-title">我的标签</h2>
@@ -203,13 +203,13 @@ onMounted(fetchTags)
       <p v-else class="center-text dim">暂无自定义标签，点击"+ 新建"创建</p>
     </section>
 
-    <!-- Preferences -->
+    <!-- 偏好设置 -->
     <section class="card">
       <div class="card-header">
         <h2 class="section-title">偏好设置</h2>
       </div>
       <div class="pref-list">
-        <!-- Theme -->
+        <!-- 主题 -->
         <div class="pref-item">
           <span class="pref-label">主题</span>
           <div class="segmented">
@@ -222,7 +222,7 @@ onMounted(fetchTags)
           </div>
         </div>
 
-        <!-- Density -->
+        <!-- 密度 -->
         <div class="pref-item">
           <span class="pref-label">视图密度</span>
           <div class="segmented">
@@ -235,7 +235,7 @@ onMounted(fetchTags)
           </div>
         </div>
 
-        <!-- Notifications -->
+        <!-- 通知 -->
         <div class="pref-item">
           <span class="pref-label">到期提醒</span>
           <div class="segmented">
@@ -250,7 +250,7 @@ onMounted(fetchTags)
           </div>
         </div>
 
-        <!-- Shortcuts -->
+        <!-- 快捷键 -->
         <div class="pref-item">
           <span class="pref-label">快捷键</span>
           <div class="shortcut-grid">
@@ -265,12 +265,12 @@ onMounted(fetchTags)
       </div>
     </section>
 
-    <!-- Logout -->
+    <!-- 退出登录 -->
     <section class="card">
       <button class="logout-btn" @click="handleLogout">退出登录</button>
     </section>
 
-    <!-- Tag Form Dialog -->
+    <!-- 标签表单对话框 -->
     <Teleport to="body">
       <Transition name="dialog-fade">
         <div v-if="tagDialogVisible" class="dialog-overlay" @click.self="tagDialogVisible = false">
@@ -338,7 +338,7 @@ onMounted(fetchTags)
   padding: 0 4px;
 }
 
-/* ── Card ── */
+/* ── 卡片 ── */
 .card {
   background: var(--surface-primary);
   border-radius: 14px;
@@ -364,7 +364,7 @@ onMounted(fetchTags)
   margin: 0;
 }
 
-/* ── Account ── */
+/* ── 账号 ── */
 .account-row {
   display: flex;
   align-items: center;
@@ -403,7 +403,7 @@ onMounted(fetchTags)
   color: var(--c-gray-400);
 }
 
-/* ── Tags ── */
+/* ── 标签 ── */
 .tag-list {
   display: flex;
   flex-direction: column;
@@ -464,7 +464,7 @@ onMounted(fetchTags)
 }
 .center-text.dim { color: var(--c-gray-400); font-size: 13px; }
 
-/* ── Preferences ── */
+/* ── 偏好设置 ── */
 .pref-list {
   display: flex;
   flex-direction: column;
@@ -488,7 +488,7 @@ onMounted(fetchTags)
   flex-shrink: 0;
 }
 
-/* Segmented control */
+/* 分段控件 */
 .segmented {
   display: flex;
   background: var(--c-gray-100);
@@ -515,7 +515,7 @@ onMounted(fetchTags)
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
 
-/* Shortcut grid */
+/* 快捷键网格 */
 .shortcut-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -544,7 +544,7 @@ kbd {
   text-align: center;
 }
 
-/* ── Password ── */
+/* ── 密码 ── */
 .pw-form {
   padding: 16px;
   display: flex;
@@ -573,7 +573,7 @@ kbd {
 .pw-save-btn:hover:not(:disabled) { background: var(--c-brand-600); }
 .pw-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* ── Logout ── */
+/* ── 退出登录 ── */
 .logout-btn {
   width: 100%;
   padding: 12px;
@@ -589,7 +589,7 @@ kbd {
 .logout-btn:hover { background: rgba(220, 38, 38, 0.06); }
 
 /* ══════════════════════════════════════════ */
-/* Tag Dialog                                */
+/* 标签对话框                                */
 /* ══════════════════════════════════════════ */
 
 .dialog-overlay {
@@ -768,7 +768,7 @@ kbd {
 .btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ══════════════════════════════════════════ */
-/* Mobile                                    */
+/* 移动端                                    */
 /* ══════════════════════════════════════════ */
 
 @media (max-width: 767px) {
@@ -802,7 +802,7 @@ kbd {
     gap: 4px;
   }
 
-  /* Mobile: dialog as bottom sheet */
+  /* 移动端：对话框变为底部抽屉 */
   .dialog-overlay {
     align-items: flex-end;
     padding: 0;

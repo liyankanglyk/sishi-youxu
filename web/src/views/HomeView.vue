@@ -19,18 +19,18 @@ const toast = useToast()
 
 useKeyboard()
 
-// ── Notification system ──
+// ── 通知系统 ──
 const notif = useNotification(() => store.serverTasks)
 if (notif.enabled.value && Notification.permission === 'granted') {
   notif.startPolling()
 }
 
-// Keep notification composable in sync with ui store toggle
+// 让通知组合函数与 ui store 的开关保持同步
 watch(() => ui.notificationsEnabled, (val) => {
   notif.setEnabled(val)
 })
 
-// ── Resizable sidebar ──
+// ── 可调节宽度的侧边栏 ──
 const isResizing = ref(false)
 const resizeRef = ref<HTMLElement | null>(null)
 
@@ -65,7 +65,7 @@ function onResizeStart(e: MouseEvent | TouchEvent) {
   document.addEventListener('touchend', onEnd)
 }
 
-// ── Import ──
+// ── 导入 ──
 type ImportStrategy = 'skip' | 'overwrite' | 'new'
 const importFile = ref<File | null>(null)
 const importStrategy = ref<ImportStrategy>('skip')
@@ -184,12 +184,12 @@ function handleImportDismiss() {
       @close="handleCloseModal"
     />
 
-    <!-- Hidden file input for import -->
+    <!-- 隐藏的文件输入框，用于导入 -->
     <input ref="fileInputRef" type="file" accept=".json,application/json" class="hidden-input" @change="handleFileChange" />
 
-    <!-- Main row: left sidebar | canvas | right sidebar -->
+    <!-- 主行：左侧栏 | 画布 | 右侧栏 -->
     <div class="home-body" :class="{ 'is-mobile': ui.isMobile }">
-      <!-- Desktop: inline TaskList -->
+      <!-- 桌面端：内联 TaskList -->
       <template v-if="!ui.isMobile">
         <Transition name="slide-left">
           <TaskList v-if="ui.leftSidebarWidth > 0" :style="{ width: ui.leftSidebarWidth + 'px' }" />
@@ -219,7 +219,7 @@ function handleImportDismiss() {
         />
       </div>
 
-      <!-- Desktop: inline StatsPanel -->
+      <!-- 桌面端：内联 StatsPanel -->
       <template v-if="!ui.isMobile">
         <Transition name="slide-right">
           <StatsPanel v-if="ui.showStatsPanel" />
@@ -227,10 +227,10 @@ function handleImportDismiss() {
       </template>
     </div>
 
-    <!-- Mobile: overlay drawers (Teleported to body) -->
+    <!-- 移动端：浮层抽屉（Teleport 到 body） -->
     <template v-if="ui.isMobile">
       <Teleport to="body">
-        <!-- TaskList drawer -->
+        <!-- TaskList 抽屉 -->
         <Transition name="drawer-left">
           <div v-if="ui.showMobileTaskList" class="mobile-drawer">
             <div class="mobile-drawer-scrim" @click="ui.closeMobileTaskList()" />
@@ -238,7 +238,7 @@ function handleImportDismiss() {
           </div>
         </Transition>
 
-        <!-- StatsPanel drawer -->
+        <!-- StatsPanel 抽屉 -->
         <Transition name="drawer-right">
           <div v-if="ui.showMobileStatsPanel" class="mobile-drawer">
             <div class="mobile-drawer-scrim" @click="ui.closeMobileStatsPanel()" />
@@ -248,7 +248,7 @@ function handleImportDismiss() {
       </Teleport>
     </template>
 
-    <!-- Import strategy dialog -->
+    <!-- 导入策略对话框 -->
     <div v-if="importFile && !importResult" class="dialog-overlay" @click.self="handleImportCancel">
       <div class="import-dialog">
         <h2 class="import-title">导入备份</h2>
@@ -275,7 +275,7 @@ function handleImportDismiss() {
       </div>
     </div>
 
-    <!-- Import result dialog -->
+    <!-- 导入结果对话框 -->
     <div v-if="importResult && importFile" class="dialog-overlay" @click.self="handleImportDismiss">
       <div class="import-dialog import-result">
         <div class="result-icon">✅</div>
@@ -296,7 +296,7 @@ function handleImportDismiss() {
   height: 100%;
 }
 
-/* ── Body: sidebars + canvas ── */
+/* ── 主体：侧边栏 + 画布 ── */
 .home-body {
   flex: 1;
   display: flex;
@@ -311,7 +311,7 @@ function handleImportDismiss() {
   min-width: 0;
 }
 
-/* ── Sidebar transitions ── */
+/* ── 侧边栏过渡动画 ── */
 .slide-left-enter-active,
 .slide-left-leave-active {
   transition: width 0.2s ease, opacity 0.15s ease;
@@ -334,7 +334,7 @@ function handleImportDismiss() {
   opacity: 0;
 }
 
-/* ── Resize handle ── */
+/* ── 拖拽调整宽度把手 ── */
 .hidden-input { display: none; }
 
 .resize-handle {
@@ -364,7 +364,7 @@ function handleImportDismiss() {
   height: 48px;
 }
 
-/* ── Import dialog ── */
+/* ── 导入对话框 ── */
 .dialog-overlay {
   position: fixed;
   inset: 0;
@@ -464,7 +464,7 @@ function handleImportDismiss() {
 .submit-btn:hover { background: var(--c-brand-600); }
 
 /* ══════════════════════════════════════════ */
-/* Mobile drawers                            */
+/* 移动端抽屉                                */
 /* ══════════════════════════════════════════ */
 
 .mobile-drawer {
@@ -500,7 +500,7 @@ function handleImportDismiss() {
   height: 100%;
 }
 
-/* Drawer left slide transition */
+/* 左侧抽屉滑入过渡 */
 .drawer-left-enter-active,
 .drawer-left-leave-active {
   transition: opacity 0.25s ease;
@@ -526,7 +526,7 @@ function handleImportDismiss() {
   transform: translateX(-100%);
 }
 
-/* Drawer right slide transition */
+/* 右侧抽屉滑入过渡 */
 .drawer-right-enter-active,
 .drawer-right-leave-active {
   transition: opacity 0.25s ease;
@@ -552,7 +552,7 @@ function handleImportDismiss() {
   transform: translateX(100%);
 }
 
-/* Hide resize handle on mobile */
+/* 在移动端隐藏拖拽调整宽度把手 */
 @media (max-width: 767px) {
   .resize-handle { display: none !important; }
 

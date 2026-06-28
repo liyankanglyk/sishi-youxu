@@ -1,7 +1,7 @@
-"""Application configuration loaded from environment variables / .env file.
+"""应用配置，从环境变量 / .env 文件加载。
 
-Skeleton version — only declares the surface used by the framework itself.
-Business modules may import `settings` and extend this list as needed.
+骨架版本 —— 仅声明框架自身使用的配置面。
+业务模块可以导入 `settings` 并按需扩展此清单。
 
 设计要点（兼容 Web / Capacitor / 微信小程序）：
 
@@ -22,7 +22,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Global settings object, instantiated once via `get_settings()`."""
+    """全局配置对象，通过 `get_settings()` 实例化一次。"""
 
     model_config = SettingsConfigDict(
         env_file=Path(__file__).resolve().parents[2] / ".env",
@@ -93,7 +93,7 @@ class Settings(BaseSettings):
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    """Return a cached Settings instance."""
+    """返回一个缓存的 Settings 实例。"""
     return Settings()
 
 

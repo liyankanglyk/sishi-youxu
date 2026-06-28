@@ -1,4 +1,4 @@
-"""Tag DTOs — camelCase field names matching API spec."""
+"""标签相关 DTO —— 字段采用驼峰命名以匹配 API 规范。"""
 
 from __future__ import annotations
 
@@ -9,12 +9,12 @@ from pydantic import BaseModel, Field
 
 
 # =============================================================================
-# Request DTOs
+# 请求 DTO
 # =============================================================================
 
 
 class TagCreateRequest(BaseModel):
-    """Create a custom tag."""
+    """创建自定义标签。"""
 
     name: str = Field(..., min_length=1, max_length=50, description="标签名称")
     color: str = Field(
@@ -25,7 +25,7 @@ class TagCreateRequest(BaseModel):
 
 
 class TagUpdateRequest(BaseModel):
-    """Partial update for a tag. Preset tags cannot be modified."""
+    """标签的部分更新，预设标签不可修改。"""
 
     name: Optional[str] = Field(default=None, min_length=1, max_length=50, description="标签名称")
     color: Optional[str] = Field(
@@ -36,7 +36,7 @@ class TagUpdateRequest(BaseModel):
 
 
 # =============================================================================
-# Response DTOs
+# 响应 DTO
 # =============================================================================
 
 

@@ -1,6 +1,6 @@
-"""Admin audit-log endpoints — Phase 1 implementation.
+"""管理后台审计日志端点 —— Phase 1 实现。
 
-Login logs skeleton replaced with real implementation in Phase 4.
+登录日志的骨架已在 Phase 4 替换为真实实现。
 """
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ async def get_audit_entry(uuid: str, db: DbSession, _admin: RequireAdmin) -> dic
     return ok(result)
 
 
-# ── Login logs (Phase 4: real implementation) ──
+# ── 登录日志（Phase 4：真实实现）──
 login_log_router = APIRouter(prefix="/admin/login-logs", tags=["admin-audit"])
 
 

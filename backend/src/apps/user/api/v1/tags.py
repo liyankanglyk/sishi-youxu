@@ -1,7 +1,7 @@
-"""Tag CRUD endpoints — Phase 2 implementation.
+"""标签 CRUD 端点 —— Phase 2 实现。
 
-All endpoints use typed Pydantic request models so Swagger/OpenAPI
-docs show complete request body schemas.
+所有端点均使用类型化的 Pydantic 请求模型，以便 Swagger / OpenAPI
+文档能够展示完整的请求体 schema。
 """
 
 from __future__ import annotations

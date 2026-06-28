@@ -1,8 +1,8 @@
-"""Feedback endpoints — Phase 2 implementation.
+"""反馈相关端点 —— Phase 2 实现。
 
-Implemented:
-- POST /feedback — submit feedback (anonymous or authenticated)
-- GET /feedback — list my feedback (requires auth)
+已实现的功能：
+- POST /feedback — 提交反馈（匿名或已登录）
+- GET /feedback — 查询我的反馈（需鉴权）
 """
 
 from __future__ import annotations

@@ -7,7 +7,7 @@ const apiClient = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
-// Token refresh state — prevents multiple simultaneous refresh attempts
+// Token 刷新状态 —— 防止多个请求同时触发刷新
 let isRefreshing = false
 let failedQueue: Array<{
   resolve: (token: string | null) => void
@@ -22,9 +22,9 @@ function processQueue(error: unknown, token: string | null = null) {
   failedQueue = []
 }
 
-// Endpoints that handle their own auth (login / refresh). Must NOT:
-//   (a) carry the (possibly expired) access token, or
-//   (b) trigger a recursive refresh on 401.
+// 自带认证处理的端点（登录 / 刷新）。这些端点：
+//   (a) 不得携带（可能已过期的）access token；
+//   (b) 在 401 时不得触发递归刷新。
 const AUTH_BYPASS_PATHS = ['/admin/auth/tokens']
 
 function isAuthBypassUrl(url?: string): boolean {
@@ -49,7 +49,7 @@ apiClient.interceptors.response.use(
         const err = body.error || {}
         const error = new Error(err.message || '请求失败') as any
         error.code = err.code || 'UNKNOWN'
-        // Any AUTH_* error → force redirect to login
+        // 任何 AUTH_* 错误 → 强制跳转到登录页
         if (
           err.code === 'AUTH_ADMIN_REQUIRED' ||
           err.code === 'ADMIN_FORBIDDEN' ||
@@ -66,7 +66,7 @@ apiClient.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
 
-    // Skip refresh for auth endpoints (login / refresh itself).
+    // 跳过认证端点的刷新（登录 / 刷新接口本身）。
     if (
       error.response?.status === 401 &&
       !originalRequest._retry &&
@@ -127,7 +127,7 @@ function clearAuthAndRedirect() {
   localStorage.removeItem('admin_refresh_token')
   localStorage.removeItem('admin_user')
   if (window.location.pathname !== '/admin/login') {
-    // Use replace to avoid leaving the broken page in browser history.
+    // 使用 replace 避免在浏览器历史中留下已损坏的页面。
     window.location.replace('/admin/login')
   }
 }

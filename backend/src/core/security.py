@@ -1,6 +1,6 @@
-"""Security utilities: JWT issuing/parsing, ws-ticket, password hashing.
+"""安全工具：JWT 签发/解析、ws-ticket、密码哈希。
 
-Skeleton: surface only — real auth flows will plug in here.
+骨架：仅声明接口 —— 真实认证流程将接入此处。
 
 兼容要点：
 
@@ -30,15 +30,15 @@ from src.core.exceptions import UnauthorizedException
 from src.core.redis import build_key, get_redis, getdel
 
 
-# ---------- Password hashing ----------
+# ---------- 密码哈希 ----------
 
 def hash_password(plain: str) -> str:
-    """Hash a plaintext password with bcrypt."""
+    """使用 bcrypt 对明文密码进行哈希。"""
     return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    """Verify a plaintext password against a bcrypt hash."""
+    """校验明文密码与 bcrypt 哈希是否匹配。"""
     try:
         return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
     except Exception:
@@ -51,12 +51,12 @@ TokenKind = Literal["access", "refresh"]
 
 
 def _now() -> datetime:
-    """Naive UTC — matches MySQL DATETIME columns and `_now()` in models.base."""
+    """朴素 UTC —— 与 MySQL DATETIME 列以及 models.base 中的 `_now()` 一致。"""
     return datetime.utcnow()
 
 
 def _naive_utc_to_ts(dt: datetime) -> int:
-    """Convert naive UTC datetime to Unix timestamp.
+    """将朴素 UTC datetime 转换为 Unix 时间戳。
 
     Naive datetime 的 `.timestamp()` 在非 UTC 时区会被当成本地时间，
     导致 iat/exp 错位 → token 看起来「立刻过期」。
@@ -71,7 +71,7 @@ def create_access_token(
     extra_claims: dict[str, Any] | None = None,
     expires_minutes: int | None = None,
 ) -> tuple[str, str, datetime]:
-    """Create an access token. Returns (token, jti, expires_at)."""
+    """创建访问令牌，返回 (token, jti, expires_at)。"""
     return _create_token(
         subject,
         kind="access",
@@ -86,7 +86,7 @@ def create_refresh_token(
     extra_claims: dict[str, Any] | None = None,
     expires_days: int | None = None,
 ) -> tuple[str, str, datetime]:
-    """Create a refresh token. Returns (token, jti, expires_at)."""
+    """创建刷新令牌，返回 (token, jti, expires_at)。"""
     return _create_token(
         subject,
         kind="refresh",
@@ -119,7 +119,7 @@ def _create_token(
 
 
 def decode_token(token: str, *, expected_type: TokenKind | None = None) -> dict[str, Any]:
-    """Decode and validate a JWT. Raises JWTError on failure."""
+    """解码并校验 JWT，失败时抛出 JWTError。"""
     payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
     if expected_type and payload.get("type") != expected_type:
         raise JWTError(f"token type mismatch: expected {expected_type}")
@@ -127,11 +127,10 @@ def decode_token(token: str, *, expected_type: TokenKind | None = None) -> dict[
 
 
 def decode_token_or_raise(token: str, *, expected_type: TokenKind | None = None) -> dict[str, Any]:
-    """Decode a JWT; raise UnauthorizedException on any failure.
+    """解码 JWT；任何失败都抛出 UnauthorizedException。
 
-    Used by deps where JWTError would otherwise bubble up to the global handler
-    as a generic 500. Mapping to a 401 with the spec'd error code keeps the
-    response envelope consistent.
+    在依赖项中使用，避免 JWTError 被冒泡到全局处理器并被当作通用 500。
+    映射为带规范错误码的 401，使响应外壳保持一致。
     """
     try:
         return decode_token(token, expected_type=expected_type)
@@ -142,7 +141,7 @@ def decode_token_or_raise(token: str, *, expected_type: TokenKind | None = None)
 
 
 def extract_token_from_request(request: Request) -> str | None:
-    """Extract a bearer token from either Header or Query.
+    """从 Header 或 Query 中提取 bearer token。
 
     兼容场景：
     - Web / Capacitor：`Authorization: Bearer <access_token>` 走 Header
@@ -164,10 +163,10 @@ def extract_token_from_request(request: Request) -> str | None:
     return None
 
 
-# ---------- WebSocket ticket (compatible with mini-program) ----------
+# ---------- WebSocket ticket（兼容小程序） ----------
 
 def create_ws_ticket(user_uuid: str) -> tuple[str, datetime]:
-    """Issue a one-time WebSocket ticket.
+    """签发一次性 WebSocket ticket。
 
     返回 (ticket, expires_at)。ticket 存到 Redis（带 TTL），
     ws 握手时再用 `verify_ws_ticket` 校验并立即消费（DEL）。
@@ -184,7 +183,7 @@ def create_ws_ticket(user_uuid: str) -> tuple[str, datetime]:
 
 
 async def store_ws_ticket(ticket: str, user_uuid: str) -> None:
-    """Persist a ws ticket in Redis under sishiyouxu:ws:ticket:<ticket>."""
+    """将 ws ticket 持久化到 Redis，key 为 sishiyouxu:ws:ticket:<ticket>。"""
     redis = get_redis()
     await redis.set(
         build_key("ws:ticket", ticket),
@@ -194,7 +193,7 @@ async def store_ws_ticket(ticket: str, user_uuid: str) -> None:
 
 
 async def consume_ws_ticket(ticket: str) -> str | None:
-    """Atomically consume a ws ticket; return user_uuid on success, None otherwise.
+    """原子地消费一个 ws ticket；成功返回 user_uuid，否则返回 None。
 
     GETDEL 保证「校验即作废」——同一 ticket 不能被两个连接复用。
     """
@@ -206,18 +205,18 @@ async def consume_ws_ticket(ticket: str) -> str | None:
     return user_uuid
 
 
-# ---------- Misc ----------
+# ---------- 其他 ----------
 
 def sha256_hex(value: str) -> str:
-    """SHA-256 of a string, returned as lowercase hex."""
+    """对字符串计算 SHA-256，返回小写十六进制。"""
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 def generate_uuid() -> str:
-    """Generate a new UUID4 string."""
+    """生成一个新的 UUID4 字符串。"""
     return str(uuid.uuid4())
 
 
 def random_token(length: int = 32) -> str:
-    """Generate a URL-safe random token (e.g. captcha/codes)."""
+    """生成 URL 安全的随机 token（如验证码/口令）。"""
     return secrets.token_urlsafe(length)

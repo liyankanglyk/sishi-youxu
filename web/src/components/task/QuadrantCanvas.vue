@@ -26,7 +26,7 @@ interface DragState {
   uuid: string | null
   startX: number
   startY: number
-  offsetX: number        // cursor offset from card center at grab time
+  offsetX: number        // 抓取时光标相对卡片中心的偏移量
   offsetY: number
   canvasLeft: number
   canvasTop: number
@@ -35,9 +35,9 @@ interface DragState {
   pointerId: number | null
   active: boolean
   moved: boolean
-  liveLeft: string | null   // px value relative to canvas, set during drag
+  liveLeft: string | null   // 拖拽过程中相对画布的 px 值
   liveTop: string | null
-  snappedU: number          // last snapped level from pointermove
+  snappedU: number          // pointermove 最近一次吸附后的 level
   snappedI: number
 }
 
@@ -59,7 +59,7 @@ const drag = reactive<DragState>({
 const wrapperRefs = new Map<string, HTMLElement>()
 const DRAG_THRESHOLD = 4
 
-// ── Canvas layout constants ──
+// ── 画布布局常量 ──
 const CANVAS_MARGIN = 6
 const CANVAS_RANGE = 88
 const LEVEL_MIN = -4
@@ -92,23 +92,23 @@ function tasksForQuadrant(qId: string): TaskEx[] {
   return store.q4Tasks
 }
 
-// ── Stack: tasks at same (u,i) render as a deck — top card fully visible,
-//     cards below peek out with a noticeable diagonal offset ──
-const STACK_OFFSET_PX = 22 // pixels between successive cards in the stack
-const STACK_MAX_OFFSET_PX = 88 // cap total offset to avoid going too far from grid point
+// ── 堆叠：相同 (u,i) 上的任务渲染为一摞卡片 —— 顶部卡片完全可见，
+//     下方的卡片以明显的对角偏移露出一角 ──
+const STACK_OFFSET_PX = 22 // 堆叠中相邻卡片之间的像素偏移
+const STACK_MAX_OFFSET_PX = 88 // 总偏移上限，避免偏离网格点过远
 
-// Cache key → per-task {stackIndex, total, z}
+// 缓存 key → 每个任务的 {stackIndex, total, z}
 let _stackCacheKey = ''
 const _stackMap = new Map<string, { stackIndex: number; total: number; z: number }>()
 
 function buildStackMap() {
-  // Include level info in cache key so moves invalidate correctly
+  // 在缓存 key 中包含 level 信息，使移动操作能正确触发缓存失效
   const key = store.filteredTasks.map(t => `${t.uuid}:${t.urgencyLevel},${t.importanceLevel}`).join('|')
   if (key === _stackCacheKey) return
   _stackCacheKey = key
   _stackMap.clear()
 
-  // Group tasks by (u,i) coordinate
+  // 按 (u,i) 坐标对任务进行分组
   const groups = new Map<string, TaskEx[]>()
   for (const t of store.filteredTasks) {
     const k = `${t.urgencyLevel},${t.importanceLevel}`
@@ -117,7 +117,7 @@ function buildStackMap() {
   }
 
   for (const [, group] of groups) {
-    // Sort: due date asc (nulls last), then sortOrder, then uuid
+    // 排序规则：截止日期升序（空值排最后），再按 sortOrder，最后按 uuid
     group.sort((a, b) => {
       const da = a.dueDate ?? '9999'
       const db = b.dueDate ?? '9999'
@@ -126,7 +126,7 @@ function buildStackMap() {
     })
 
     group.forEach((t, idx) => {
-      // idx=0 = earliest due = top of stack (highest z)
+      // idx=0 = 最早到期 = 堆叠顶部（最高 z）
       _stackMap.set(t.uuid, {
         stackIndex: idx,
         total: group.length,
@@ -140,7 +140,7 @@ function stackEntry(task: TaskEx): { stackIndex: number; total: number; z: numbe
   return _stackMap.get(task.uuid) ?? { stackIndex: 0, total: 1, z: 1 }
 }
 
-/** All tasks positioned relative to the full canvas — same coordinate system as drag math. */
+/** 所有任务相对于整个画布定位 —— 与拖拽计算使用同一套坐标系。 */
 function taskStyle(task: TaskEx): Record<string, string> {
   if (drag.active && drag.uuid === task.uuid && drag.liveLeft && drag.liveTop) {
     return {
@@ -152,7 +152,7 @@ function taskStyle(task: TaskEx): Record<string, string> {
   buildStackMap()
   const e = stackEntry(task)
 
-  // Base position from urgency/importance levels
+  // 基于紧急/重要程度的基础位置
   const baseLeftPct = levelToPercent(task.urgencyLevel)
   const baseTopPct = levelToPercent(-task.importanceLevel)
 
@@ -164,12 +164,12 @@ function taskStyle(task: TaskEx): Record<string, string> {
     }
   }
 
-  // Stacked: add pixel offset via CSS calc so it works at any canvas size.
-  // We express the offset as a calc() that adds px to the percentage position.
-  // The wrapper has transform: translate(-50%,-50%), so left/top are the card center.
-  // Adding px shifts the center right+down for cards deeper in the stack.
+  // 堆叠时通过 CSS calc 增加像素偏移，使其在任何画布尺寸下都生效。
+  // 偏移量用 calc() 表示，在百分比位置上加上 px。
+  // wrapper 设置了 transform: translate(-50%,-50%)，因此 left/top 指的是卡片中心。
+  // 增加的 px 会让位于堆叠深处的卡片中心向右下方偏移。
   const px = Math.min(e.stackIndex * STACK_OFFSET_PX, STACK_MAX_OFFSET_PX)
-  // Cards deeper in the stack get slightly less offset vertically (more fan-like spread)
+  // 堆叠更深的卡片在垂直方向上偏移略小（呈现更明显的扇形展开）
   const pxY = Math.min(e.stackIndex * (STACK_OFFSET_PX * 0.6), STACK_MAX_OFFSET_PX * 0.6)
   return {
     left: `calc(${baseLeftPct}% + ${px}px)`,
@@ -192,7 +192,7 @@ function gridPointToLevel(gx: number, gy: number): { u: number; i: number } {
   }
 }
 
-// ── Drag ──
+// ── 拖拽 ──
 
 function onPointerDown(e: PointerEvent, uuid: string) {
   const target = e.target as HTMLElement
@@ -224,8 +224,7 @@ function onPointerDown(e: PointerEvent, uuid: string) {
   drag.liveLeft = null
   drag.liveTop = null
 
-  // Delay pointer capture until drag threshold is exceeded so the browser's
-  // native click event still fires when the user just taps a card.
+  // 在拖拽阈值被突破之后再延迟启用 pointer capture，这样仅点击卡片时浏览器原生 click 事件仍会触发。
   document.addEventListener('pointermove', onPointerMove)
   document.addEventListener('pointerup', onPointerUp)
   document.addEventListener('pointercancel', onPointerCancel)
@@ -237,30 +236,30 @@ function onPointerMove(e: PointerEvent) {
   if (!drag.moved && dist < DRAG_THRESHOLD) return
 
   if (!drag.moved) {
-    // First move past threshold — switch to pointer capture and canvas class
+    // 首次越过阈值 —— 切换到 pointer capture 并为画布添加标记 class
     drag.moved = true
     const wrapper = wrapperRefs.get(drag.uuid!)
     if (wrapper) {
-      try { wrapper.setPointerCapture(drag.pointerId!) } catch { /* ignore */ }
+      try { wrapper.setPointerCapture(drag.pointerId!) } catch { /* 忽略 */ }
     }
     canvasRef.value?.classList.add('is-dragging')
   }
   drag.active = true
 
-  // Card center in canvas-pixel coords
+  // 卡片中心在画布像素坐标系中的位置
   const cxCanvas = e.clientX - drag.offsetX - drag.canvasLeft
   const cyCanvas = e.clientY - drag.offsetY - drag.canvasTop
   const cxClamped = Math.max(0, Math.min(drag.canvasWidth, cxCanvas))
   const cyClamped = Math.max(0, Math.min(drag.canvasHeight, cyCanvas))
 
-  // Convert to 0..1 fraction of canvas → level → snappped level
+  // 转换为画布 0..1 比例 → level → 吸附后的 level
   const gx = cxClamped / drag.canvasWidth
   const gy = cyClamped / drag.canvasHeight
   const { u, i } = gridPointToLevel(gx, gy)
   drag.snappedU = u
   drag.snappedI = i
 
-  // Convert snapped level back to canvas-pixel position for liveLeft/Top
+  // 将吸附后的 level 重新换算为画布像素位置，用于 liveLeft/Top
   drag.liveLeft = `${(levelToPercent(u) / 100) * drag.canvasWidth}px`
   drag.liveTop = `${(levelToPercent(-i) / 100) * drag.canvasHeight}px`
 }
@@ -272,7 +271,7 @@ function endDragCleanup() {
   if (drag.uuid) {
     const wrapper = wrapperRefs.get(drag.uuid)
     if (wrapper && drag.pointerId !== null) {
-      try { wrapper.releasePointerCapture(drag.pointerId) } catch { /* ignore */ }
+      try { wrapper.releasePointerCapture(drag.pointerId) } catch { /* 忽略 */ }
     }
   }
   canvasRef.value?.classList.remove('is-dragging')
@@ -333,7 +332,7 @@ function handleTaskClick(task: TaskEx) {
     @click.capture="onClickCapture"
     @dblclick="onCanvasDblClick"
   >
-    <!-- Quadrant backgrounds + empty states -->
+    <!-- 象限背景 + 空状态 -->
     <div class="quadrant-grid">
       <div
         v-for="q in quadrants"
@@ -341,7 +340,7 @@ function handleTaskClick(task: TaskEx) {
         class="quadrant-pane"
         :style="{ backgroundColor: q.bg }"
       >
-        <!-- Always-visible label -->
+        <!-- 始终可见的标签 -->
         <div class="quadrant-label">
           <span class="ql-name">{{ q.label }}</span>
           <span class="ql-sub">{{ q.sub }}</span>
@@ -355,7 +354,7 @@ function handleTaskClick(task: TaskEx) {
       </div>
     </div>
 
-    <!-- Task wrappers — direct children of canvas, positioned relative to full canvas -->
+    <!-- 任务 wrapper —— 作为画布的直接子元素，相对于整个画布定位 -->
     <div
       v-for="task in store.filteredTasks"
       :key="task.uuid"
@@ -379,18 +378,18 @@ function handleTaskClick(task: TaskEx) {
         @delete="(t: TaskOut) => emit('task-delete', t as TaskEx)"
         @contextmenu="(t: TaskOut) => emit('select-toggle', t.uuid)"
       />
-      <!-- Stack indicator — only on top card, top-left to avoid complete button -->
+      <!-- 堆叠指示 —— 仅在顶部卡片左上角显示，避免遮挡完成按钮 -->
       <span
         v-if="stackEntry(task).total > 1 && stackEntry(task).stackIndex === 0"
         class="stack-badge"
       >×{{ stackEntry(task).total }}</span>
-      <!-- Drag level badge -->
+      <!-- 拖拽 level 指示徽标 -->
       <div v-if="drag.uuid === task.uuid && drag.active" class="drag-level-badge">
         I{{ drag.snappedI }} · U{{ drag.snappedU }}
       </div>
     </div>
 
-    <!-- Axis overlay -->
+    <!-- 坐标轴覆盖层 -->
     <div class="axis-overlay">
       <div class="axis-h-line" />
       <div class="axis-v-line" />
@@ -400,7 +399,7 @@ function handleTaskClick(task: TaskEx) {
       <span class="ax-label ax-right">紧急 →</span>
     </div>
 
-    <!-- Batch mode bar -->
+    <!-- 批量模式操作栏 -->
     <div v-if="selectMode && (selectedIds?.length ?? 0) > 0" class="batch-bar">
       <span class="batch-count">已选 {{ selectedIds?.length }} 项</span>
       <div class="batch-actions">
@@ -425,7 +424,7 @@ function handleTaskClick(task: TaskEx) {
   width: 100%;
 }
 
-/* ── Quadrant grid (backgrounds only) ── */
+/* ── 象限网格（仅背景） ── */
 .quadrant-grid {
   position: absolute;
   inset: 0;
@@ -442,7 +441,7 @@ function handleTaskClick(task: TaskEx) {
   pointer-events: none;
 }
 
-/* ── Always-visible quadrant label ── */
+/* ── 始终可见的象限标签 ── */
 .quadrant-label {
   position: absolute;
   top: 10px;
@@ -482,7 +481,7 @@ function handleTaskClick(task: TaskEx) {
   width: 100%;
 }
 
-/* ── Task card wrapper ── */
+/* ── 任务卡片 wrapper ── */
 .task-card-wrapper {
   position: absolute;
   touch-action: none;
@@ -506,12 +505,12 @@ function handleTaskClick(task: TaskEx) {
   outline-offset: 1px;
 }
 
-/* While a card is being dragged, allow the quadrant-pane to show it */
+/* 卡片拖拽过程中，允许 quadrant-pane 显示该卡片 */
 .quadrant-canvas.is-dragging .quadrant-pane {
   overflow: visible;
 }
 
-/* ── Empty area ── */
+/* ── 空区域 ── */
 .empty-area {
   position: absolute;
   top: 50%;
@@ -533,7 +532,7 @@ function handleTaskClick(task: TaskEx) {
   margin: 4px 0 0;
 }
 
-/* ── Axis overlay ── */
+/* ── 坐标轴覆盖层 ── */
 .axis-overlay {
   position: absolute;
   inset: 0;
@@ -578,7 +577,7 @@ function handleTaskClick(task: TaskEx) {
 .ax-left   { left: 8px;   top: 50%;  transform: translateY(-50%); }
 .ax-right  { right: 8px;  top: 50%;  transform: translateY(-50%); }
 
-/* ── Batch bar ── */
+/* ── 批量操作栏 ── */
 .batch-bar {
   position: absolute;
   bottom: 16px;
@@ -630,8 +629,8 @@ function handleTaskClick(task: TaskEx) {
 }
 .batch-cancel:hover { color: #fff; }
 
-/* ── Drag level badge ── */
-/* ── Stack badge ── */
+/* ── 拖拽 level 徽标 ── */
+/* ── 堆叠徽标 ── */
 .stack-badge {
   position: absolute;
   top: -7px;
@@ -652,7 +651,7 @@ function handleTaskClick(task: TaskEx) {
   box-shadow: 0 1px 4px rgba(0,0,0,0.15);
 }
 
-/* ── Drag level badge ── */
+/* ── 拖拽 level 徽标 ── */
 .drag-level-badge {
   position: absolute;
   bottom: -24px;
@@ -670,7 +669,7 @@ function handleTaskClick(task: TaskEx) {
   z-index: 101;
 }
 
-/* Mobile adaptations */
+/* 移动端适配 */
 @media (max-width: 767px) {
   .ax-label {
     font-size: 8px;

@@ -1,4 +1,4 @@
-"""User model skeleton — fields only, no relationships yet."""
+"""用户模型骨架 —— 仅含字段，暂无关联关系。"""
 from __future__ import annotations
 
 import enum

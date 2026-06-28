@@ -1,8 +1,8 @@
-"""FastAPI application entry point.
+"""FastAPI 应用入口。
 
-Skeleton wiring: middleware, routers, lifespan, healthcheck. No business logic.
+骨架装配：中间件、路由、生命周期、健康检查。不含业务逻辑。
 
-Run with:
+运行方式：
     uvicorn src.main:app --reload --port 8000
 
 兼容端（Web / Capacitor / 微信小程序）：
@@ -334,10 +334,10 @@ logger = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Best-effort startup/shutdown.
+    """尽力而为的启动/关闭流程。
 
-    The skeleton tolerates MySQL/Redis being offline — endpoints will fail
-    individually when invoked, but the framework itself boots.
+    骨架能容忍 MySQL/Redis 离线 — 各端点在被调用时可能单独失败，
+    但框架本身能够正常启动。
     """
     logger.info(
         "starting %s v%s (env=%s, timezone=%s)",
@@ -384,7 +384,7 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
-    """Application factory."""
+    """应用工厂。"""
     app = FastAPI(
         title=settings.APP_NAME,
         version=settings.APP_VERSION,
@@ -409,7 +409,7 @@ def create_app() -> FastAPI:
     async def health() -> dict:
         return ok({"status": "ok", "version": settings.APP_VERSION, "env": settings.APP_ENV})
 
-    # Root
+    # 根路径
     @app.get("/", tags=["meta"])
     async def root() -> dict:
         return ok(
@@ -421,7 +421,7 @@ def create_app() -> FastAPI:
             }
         )
 
-    # API v1 mount
+    # 挂载 API v1 路由
     from src.apps.admin import admin_router
     from src.apps.user import user_router
 

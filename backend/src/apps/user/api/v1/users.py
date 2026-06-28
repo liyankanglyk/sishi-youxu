@@ -1,13 +1,13 @@
-"""User registration & profile endpoints — Phase 3 implementation.
+"""用户注册与个人资料端点 —— Phase 3 实现。
 
-Implemented:
-- POST /users — register + auto-login
-- GET /users/me — current user profile
-- PATCH /users/me — update profile
-- POST /users/me/password — change password
-- POST /users/me/avatar — upload avatar
-- Auth-linkage CRUD (token, list, bind, unbind)
-- Reminder channels (skeleton placeholders)
+已实现的功能：
+- POST /users — 注册 + 自动登录
+- GET /users/me — 当前用户资料
+- PATCH /users/me — 更新个人资料
+- POST /users/me/password — 修改密码
+- POST /users/me/avatar — 上传头像
+- 第三方登录绑定 CRUD（token、列表、绑定、解绑）
+- 提醒渠道（骨架占位）
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ router = APIRouter(prefix="/users", tags=["user-users"])
 
 
 # =============================================================================
-# Registration
+# 注册
 # =============================================================================
 
 @router.post("", summary="注册新用户", description="注册后自动登录并签发 JWT")
@@ -47,7 +47,7 @@ async def register(body: RegisterRequest, db: DbSession, request: Request) -> di
 
 
 # =============================================================================
-# Profile
+# 个人资料
 # =============================================================================
 
 @router.get("/me", summary="当前用户信息", description="返回已登录用户的个人信息")
@@ -69,7 +69,7 @@ async def update_me(body: UpdateProfileRequest, current: RequiredUser, db: DbSes
 
 
 # =============================================================================
-# Password
+# 密码
 # =============================================================================
 
 @router.post("/me/password", summary="修改密码", description="验证旧密码后设置新密码，并强制登出所有设备")
@@ -82,7 +82,7 @@ async def change_password(body: ChangePasswordRequest, current: RequiredUser, db
 
 
 # =============================================================================
-# Avatar
+# 头像
 # =============================================================================
 
 @router.post("/me/avatar", summary="上传头像", description="上传头像图片（JPG/PNG/WebP，最大 2MB）")
@@ -101,7 +101,7 @@ async def upload_avatar(
 
 
 # =============================================================================
-# Auth Linkage
+# 第三方登录绑定
 # =============================================================================
 
 @router.post("/me/auth-linkage/token", summary="生成绑定 Token", description="获取用于绑定新登录方式的临时令牌")
@@ -146,13 +146,13 @@ async def unbind_provider(provider: str, current: RequiredUser, db: DbSession) -
 
 
 # =============================================================================
-# Reminder Channels (skeleton)
+# 提醒渠道（骨架）
 # =============================================================================
 
 @router.get("/me/reminder-channels", summary="获取提醒渠道设置")
 async def get_reminder_channels(current: RequiredUser) -> dict:
     """获取已开启的提醒渠道（骨架占位）。"""
-    # Phase 4+ will read from Redis or a dedicated table
+    # Phase 4+ 将从 Redis 或独立表中读取
     return ok({
         "channels": [
             {"type": "web_push", "enabled": True, "label": "浏览器推送"},

@@ -7,7 +7,7 @@ import { adminApi, type DashboardStats } from '@/api/admin'
 const stats = ref<DashboardStats | null>(null)
 const loading = ref(false)
 
-// Chart
+// 图表相关
 const chartRef = ref<HTMLDivElement>()
 let chartInstance: echarts.ECharts | null = null
 const activeMetric = ref('new_users')
@@ -110,7 +110,7 @@ onUnmounted(() => {
 
 <template>
   <div class="dashboard">
-    <!-- Stat Cards -->
+    <!-- 统计卡片 -->
     <div class="stat-grid">
       <div class="stat-card stat-users">
         <div class="stat-icon">
@@ -153,21 +153,21 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Charts Row -->
+    <!-- 图表行 -->
     <div class="chart-row">
-      <!-- Quadrant -->
+      <!-- 象限分布 -->
       <div class="card quadrant-card">
         <div class="card-header">
           <h3>象限分布</h3>
           <span class="card-sub">艾森豪威尔矩阵</span>
         </div>
         <div class="quadrant-matrix-wrap" v-if="stats?.quadrant_distribution">
-          <!-- Top axis: 重要 -->
+          <!-- 顶部坐标轴：重要 -->
           <div class="qm-top-label">重要 ↑</div>
           <div class="qm-row">
-            <!-- Left axis: 不紧急 -->
+            <!-- 左侧坐标轴：不紧急 -->
             <div class="qm-left-label">← 不紧急</div>
-            <!-- 2x2 Grid -->
+            <!-- 2x2 网格 -->
             <div class="qm-grid">
               <div class="qm-cell qm-q2">
                 <strong>{{ stats.quadrant_distribution.q2 }}</strong>
@@ -186,10 +186,10 @@ onUnmounted(() => {
                 <span>不重要紧急</span>
               </div>
             </div>
-            <!-- Right axis: 紧急 -->
+            <!-- 右侧坐标轴：紧急 -->
             <div class="qm-right-label">紧急 →</div>
           </div>
-          <!-- Bottom axis: 不重要 -->
+          <!-- 底部坐标轴：不重要 -->
           <div class="qm-bottom-label">不重要 ↓</div>
         </div>
         <div v-else class="card-empty">
@@ -197,7 +197,7 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Trend -->
+      <!-- 趋势图 -->
       <div class="card chart-card">
         <div class="card-header">
           <h3>时间趋势</h3>
@@ -220,7 +220,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* ===== Stat Grid ===== */
+/* ===== 统计卡片网格 ===== */
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -279,14 +279,14 @@ onUnmounted(() => {
   line-height: 1;
 }
 
-/* ===== Chart Row ===== */
+/* ===== 图表行 ===== */
 .chart-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 20px;
 }
 
-/* ===== Card ===== */
+/* ===== 卡片 ===== */
 .card {
   background: #fff;
   border-radius: 12px;
@@ -327,7 +327,7 @@ onUnmounted(() => {
   font-size: 14px;
 }
 
-/* ===== Quadrant Matrix ===== */
+/* ===== 象限矩阵 ===== */
 .quadrant-matrix-wrap {
   padding: 16px 20px 12px;
   display: flex;
@@ -418,7 +418,7 @@ onUnmounted(() => {
 .qm-q4 strong { color: #d97706; }
 .qm-q4 span { color: #92400e; }
 
-/* ===== Metric Tabs ===== */
+/* ===== 指标切换 Tab ===== */
 .metric-tabs {
   display: flex;
   background: #f1f5f9;
@@ -450,14 +450,14 @@ onUnmounted(() => {
   color: #475569;
 }
 
-/* ===== Chart ===== */
+/* ===== 图表 ===== */
 .chart-container {
   width: 100%;
   height: 360px;
   padding: 16px;
 }
 
-/* ===== Responsive ===== */
+/* ===== 响应式 ===== */
 @media (max-width: 1200px) {
   .stat-grid { grid-template-columns: repeat(2, 1fr); }
   .chart-row { grid-template-columns: 1fr; }

@@ -1,9 +1,9 @@
-"""SQLAlchemy 2.0 declarative base + reusable mixins.
+"""SQLAlchemy 2.0 声明式基类 + 可复用 mixin。
 
-Skeleton provides:
-  - UUIDMixin: CHAR(36) primary key, auto-filled with uuid4
-  - TimestampMixin: created_at / updated_at (UTC)
-  - SoftDeleteMixin: deleted_at column (NULL = alive)
+骨架提供：
+  - UUIDMixin：CHAR(36) 主键，自动填充 uuid4
+  - TimestampMixin：created_at / updated_at（UTC）
+  - SoftDeleteMixin：deleted_at 列（NULL = 存活）
 """
 from __future__ import annotations
 
@@ -15,17 +15,17 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
 def _utcnow() -> datetime:
-    # Naive UTC — matches MySQL DATETIME column (no tz info).
-    # All business code compares/arithmetics naive datetimes.
+    # 朴素 UTC —— 与 MySQL DATETIME 列匹配（不含时区信息）。
+    # 所有业务代码均使用朴素 datetime 进行比较与运算。
     return datetime.utcnow()
 
 
 class Base(DeclarativeBase):
-    """Declarative base. All ORM models inherit from this."""
+    """声明式基类。所有 ORM 模型均继承自此。"""
 
 
 class UUIDMixin:
-    """Primary key: CHAR(36) UUID4."""
+    """主键：CHAR(36) UUID4。"""
 
     uuid: Mapped[str] = mapped_column(
         CHAR(36),
@@ -36,7 +36,7 @@ class UUIDMixin:
 
 
 class TimestampMixin:
-    """created_at / updated_at columns, auto-managed."""
+    """created_at / updated_at 列，自动维护。"""
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
@@ -54,7 +54,7 @@ class TimestampMixin:
 
 
 class SoftDeleteMixin:
-    """Soft delete column. NULL means alive."""
+    """软删除列。NULL 表示存活。"""
 
     deleted_at: Mapped[datetime | None] = mapped_column(
         DateTime,

@@ -21,7 +21,7 @@ const emit = defineEmits<{ close: [] }>()
 
 const taskStore = useTaskStore()
 
-// ── Form state ──
+// ── 表单状态 ──
 const title = ref('')
 const urgencyLevel = ref(0)
 const importanceLevel = ref(0)
@@ -35,14 +35,14 @@ const loading = ref(false)
 const saving = ref(false)
 const isEdit = computed(() => !!props.taskUuid)
 
-// ── Markdown preview ──
+// ── Markdown 预览 ──
 const notePreview = ref(false)
 const renderedNote = computed(() => {
   if (!note.value.trim()) return ''
   try { return marked.parse(note.value) as string } catch { return note.value }
 })
 
-// ── Inline tag creation ──
+// ── 内联创建标签 ──
 const isNewTagOpen = ref(false)
 const newTagName = ref('')
 const newTagColor = ref('#6366f1')
@@ -66,10 +66,10 @@ async function createTagInline() {
   } finally { newTagSaving.value = false }
 }
 
-// Tag options (loaded from server)
+// 标签选项（从服务器加载）
 const tagOptions = ref<TagOut[]>([])
 
-// Quadrant selection
+// 象限选择
 function selectQuadrant(u: number, i: number) {
   urgencyLevel.value = u
   importanceLevel.value = i
@@ -84,7 +84,7 @@ function quadrantLabel(u: number, i: number): string {
 
 const currentQuadrantLabel = computed(() => quadrantLabel(urgencyLevel.value, importanceLevel.value))
 
-// ── Load task data ──
+// ── 加载任务数据 ──
 watch(() => [props.visible, props.taskUuid], async ([vis, uuid]) => {
   if (!vis) return
   resetForm()
@@ -140,7 +140,7 @@ async function loadChecklist(taskUuid: string) {
   }
 }
 
-// ── Tag selection ──
+// ── 标签选择 ──
 function toggleTag(uuid: string) {
   const idx = selectedTags.value.indexOf(uuid)
   if (idx >= 0) selectedTags.value.splice(idx, 1)
@@ -151,7 +151,7 @@ function isTagSelected(uuid: string) {
   return selectedTags.value.includes(uuid)
 }
 
-// ── Checklist ──
+// ── 检查项 ──
 function addChecklistItem() {
   const uuid = crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)
   checklist.value.push({ uuid, title: '', completed: false, _new: true })
@@ -161,7 +161,7 @@ function removeChecklistItem(idx: number) {
   checklist.value.splice(idx, 1)
 }
 
-// ── Submit ──
+// ── 提交 ──
 async function handleSubmit() {
   if (!title.value.trim()) {
     toast.warning('请输入任务标题')
@@ -188,13 +188,13 @@ async function handleSubmit() {
       savedTask = data
     }
 
-    // Sync checklist changes
+    // 同步检查项变更
     if (savedTask.uuid) {
       for (const item of checklist.value) {
         if (item._new && item.title.trim()) {
           await taskApi.createChecklistItem(savedTask.uuid, { title: item.title.trim() })
         } else if (!item._new) {
-          // Sync completion status for existing items
+          // 同步已有项的完成状态
           await taskApi.updateChecklistItem(savedTask.uuid, item.uuid, {
             title: item.title,
             completed: item.completed,
@@ -229,7 +229,7 @@ function handleClose() {
       <div v-if="loading" class="loading-overlay">
         <span class="spinner" />
       </div>
-      <!-- Title -->
+      <!-- 标题 -->
       <div class="field">
         <label class="field-label">标题</label>
         <input
@@ -242,7 +242,7 @@ function handleClose() {
         />
       </div>
 
-      <!-- Quadrant selector -->
+      <!-- 象限选择器 -->
       <div class="field">
         <label class="field-label">象限位置</label>
         <div class="quadrant-picker">
@@ -288,7 +288,7 @@ function handleClose() {
         <p class="field-hint">{{ currentQuadrantLabel }}</p>
       </div>
 
-      <!-- Due date + Recurrence -->
+      <!-- 截止日期 + 重复规则 -->
       <div class="field-row">
         <div class="field" style="flex:1">
           <label class="field-label">截止日期</label>
@@ -307,7 +307,7 @@ function handleClose() {
         </div>
       </div>
 
-      <!-- Tags -->
+      <!-- 标签 -->
       <div class="field">
         <label class="field-label">标签</label>
         <div class="tag-grid">
@@ -332,7 +332,7 @@ function handleClose() {
             + 新建
           </button>
         </div>
-        <!-- Inline tag creation -->
+        <!-- 内联创建标签 -->
         <div v-if="isNewTagOpen" class="inline-tag-form">
           <div class="color-options">
             <button
@@ -366,7 +366,7 @@ function handleClose() {
         </div>
       </div>
 
-      <!-- Checklist -->
+      <!-- 检查项 -->
       <div class="field">
         <div class="field-label-row">
           <label class="field-label">检查项</label>
@@ -393,7 +393,7 @@ function handleClose() {
         <p v-else class="field-hint">将复杂任务拆分为小步骤</p>
       </div>
 
-      <!-- Note -->
+      <!-- 备注 -->
       <div class="field">
         <div class="field-label-row">
           <label class="field-label">
@@ -496,7 +496,7 @@ function handleClose() {
 
 .field-row { display: flex; gap: var(--s-3); }
 
-/* Quadrant picker */
+/* 象限选择器 */
 .quadrant-picker {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -526,7 +526,7 @@ function handleClose() {
 .qp-label { font-weight: 700; font-size: 1rem; color: var(--c-gray-700); }
 .qp-sub { font-size: 11px; color: var(--c-gray-500); }
 
-/* Level sliders */
+/* Level 滑块 */
 .level-sliders {
   display: flex;
   flex-direction: column;
@@ -551,7 +551,7 @@ function handleClose() {
   accent-color: var(--c-brand-500);
 }
 
-/* Tags */
+/* 标签 */
 .tag-grid {
   display: flex;
   flex-wrap: wrap;
@@ -570,7 +570,7 @@ function handleClose() {
 .tag-option:hover { border-color: var(--c-gray-400); }
 .tag-option.selected { font-weight: 500; }
 
-/* Checklist */
+/* 检查项 */
 .checklist-items {
   display: flex;
   flex-direction: column;
@@ -620,14 +620,14 @@ function handleClose() {
 }
 .remove-btn:hover { color: var(--c-danger); background: rgba(220, 38, 38, 0.08); }
 
-/* Note */
+/* 备注 */
 .note-input {
   resize: vertical;
   min-height: 60px;
   font-family: inherit;
 }
 
-/* Footer buttons */
+/* 底部按钮 */
 .cancel-btn {
   padding: 8px 18px;
   background: var(--c-gray-100);
@@ -654,7 +654,7 @@ function handleClose() {
 .submit-btn:hover:not(:disabled) { background: var(--c-brand-600); }
 .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* ── Inline tag creation ── */
+/* ── 内联创建标签 ── */
 .tag-option.new-tag-btn {
   border-style: dashed;
   color: var(--c-gray-400);
@@ -730,7 +730,7 @@ function handleClose() {
 .add-tag-btn:hover:not(:disabled) { background: var(--c-brand-600); }
 .add-tag-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* ── Markdown preview ── */
+/* ── Markdown 预览 ── */
 .label-hint {
   font-size: 10px;
   font-weight: 400;
@@ -785,7 +785,7 @@ function handleClose() {
   margin: 6px 0;
 }
 
-/* Mobile optimizations */
+/* 移动端优化 */
 @media (max-width: 767px) {
   .task-form {
     gap: var(--s-2);

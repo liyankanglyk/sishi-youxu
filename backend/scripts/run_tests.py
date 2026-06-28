@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-"""One-shot test runner.
+"""一次性测试运行脚本。
 
-Skeleton entry — full fixtures and suites land in Phase 6.
-Usage:
+骨架入口 —— 完整的 fixture 与测试套件将在 Phase 6 落地。
+用法：
     python scripts/run_tests.py
 """
 from __future__ import annotations

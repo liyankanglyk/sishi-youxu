@@ -79,9 +79,9 @@ function handlePermanentDelete(uuid: string, e: Event) {
 
 <template>
   <aside class="task-list-panel">
-    <!-- Filters -->
+    <!-- 过滤器 -->
     <div class="filter-bar">
-      <!-- Due filter chips -->
+      <!-- 截止日期筛选 chip -->
       <div class="filter-row">
         <button
           v-for="f in [
@@ -98,7 +98,7 @@ function handlePermanentDelete(uuid: string, e: Event) {
         >{{ f.label }}</button>
       </div>
 
-      <!-- Quadrant filter chips -->
+      <!-- 象限筛选 chip -->
       <div class="filter-row">
         <button
           class="filter-chip"
@@ -115,7 +115,7 @@ function handlePermanentDelete(uuid: string, e: Event) {
         >{{ quadrantConfig[q].label }}</button>
       </div>
 
-      <!-- Tag filter -->
+      <!-- 标签筛选 -->
       <div v-if="store.tags.length" class="filter-row tag-filter-row">
         <button
           v-for="tag in store.tags"
@@ -130,7 +130,7 @@ function handlePermanentDelete(uuid: string, e: Event) {
       <button v-if="store.hasActiveFilters" class="clear-filters-btn" @click="store.clearFilters()">清除筛选</button>
     </div>
 
-    <!-- Task list -->
+    <!-- 任务列表 -->
     <div class="task-sections">
       <template v-for="q in quadrantsOrder" :key="q">
         <div v-if="store.groupedTasks[q]?.length" class="group-section">
@@ -189,7 +189,7 @@ function handlePermanentDelete(uuid: string, e: Event) {
       <p v-if="!store.filteredTasks.length" class="empty-msg">暂无任务</p>
     </div>
 
-    <!-- Completed tasks -->
+    <!-- 已完成任务 -->
     <div v-if="store.completedTasks.length" class="completed-section">
       <button class="group-header" @click="showCompleted = !showCompleted">
         <span class="group-label">已完成 ({{ store.completedTasks.length }})</span>
@@ -226,7 +226,7 @@ function handlePermanentDelete(uuid: string, e: Event) {
   overflow: hidden;
 }
 
-/* Filters */
+/* 过滤器 */
 .filter-bar {
   padding: 12px;
   border-bottom: 1px solid var(--border-light);
@@ -280,7 +280,7 @@ function handlePermanentDelete(uuid: string, e: Event) {
 }
 .clear-filters-btn:hover { color: var(--c-danger); }
 
-/* Task sections */
+/* 任务分组 */
 .task-sections {
   flex: 1;
   overflow-y: auto;
@@ -428,7 +428,7 @@ function handlePermanentDelete(uuid: string, e: Event) {
   font-size: 13px;
 }
 
-/* Completed section */
+/* 已完成分组 */
 .completed-section {
   border-top: 1px solid var(--c-gray-200);
   flex-shrink: 0;

@@ -1,4 +1,4 @@
-"""Sync DTOs — camelCase field names matching API spec."""
+"""同步相关 DTO —— 字段采用驼峰命名以匹配 API 规范。"""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 
 class SyncOpItem(BaseModel):
-    """A single sync operation."""
+    """单个同步操作。"""
 
     opId: str = Field(..., min_length=1, description="客户端生成的幂等 ID")
     entity: str = Field(..., description="实体类型：task / tag / taskTag / checklistItems")
@@ -18,6 +18,6 @@ class SyncOpItem(BaseModel):
 
 
 class SyncPushRequest(BaseModel):
-    """Batch push local ops to server."""
+    """批量推送本地操作到服务端。"""
 
     ops: list[SyncOpItem] = Field(..., min_length=1, max_length=100, description="操作列表")

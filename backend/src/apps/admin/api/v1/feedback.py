@@ -1,4 +1,4 @@
-"""Admin feedback endpoints — Phase 1 implementation."""
+"""管理后台反馈端点 —— Phase 1 实现。"""
 
 from __future__ import annotations
 
@@ -50,7 +50,7 @@ async def admin_update_feedback(
 
 @router.delete("/{uuid}", summary="删除反馈")
 async def admin_delete_feedback(uuid: str, db: DbSession, _admin: RequireAdmin) -> dict:
-    # Soft-delete
+    # 软删除
     stmt = select(Feedback).where(Feedback.uuid == uuid, Feedback.deleted_at.is_(None))
     fb = (await db.execute(stmt)).scalar_one_or_none()
     if fb is None:

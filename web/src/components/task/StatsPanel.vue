@@ -100,7 +100,7 @@ function localDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-// Weekly completion trend (last 7 days)
+// 近 7 天的完成趋势
 const weekDays = computed(() => {
   const days: { label: string; completed: number; created: number }[] = []
   const now = new Date()
@@ -123,16 +123,16 @@ const maxTrend = computed(() => Math.max(...weekDays.value.flatMap(d => [d.compl
 
 <template>
   <aside class="stats-panel">
-    <!-- Tab switcher -->
+    <!-- 标签页切换器 -->
     <div class="tab-switcher">
       <button :class="['tab-btn', { active: activeTab === 'overview' }]" @click="activeTab = 'overview'">概览</button>
       <button :class="['tab-btn', { active: activeTab === 'tags' }]" @click="activeTab = 'tags'">标签</button>
     </div>
 
     <div class="panel-body">
-      <!-- Overview tab -->
+      <!-- 概览标签页 -->
       <div v-if="activeTab === 'overview'" class="tab-content">
-        <!-- Stat cards -->
+        <!-- 统计卡片 -->
         <div class="stat-grid">
           <div class="stat-card">
             <span class="stat-num" style="color: #2563EB">{{ activeCount }}</span>
@@ -148,7 +148,7 @@ const maxTrend = computed(() => Math.max(...weekDays.value.flatMap(d => [d.compl
           </div>
         </div>
 
-        <!-- Due indicators -->
+        <!-- 截止日期指标 -->
         <div class="due-row">
           <div class="due-item overdue">
             <span class="due-num">{{ overdueCount }}</span>
@@ -168,7 +168,7 @@ const maxTrend = computed(() => Math.max(...weekDays.value.flatMap(d => [d.compl
           </div>
         </div>
 
-        <!-- Quadrant distribution -->
+        <!-- 象限分布 -->
         <div class="section-title">象限分布</div>
         <div v-if="activeCount || completedCount" class="quadrant-dist">
           <div v-for="q in quadrantConfig" :key="q.key" class="quadrant-bar-row">
@@ -187,7 +187,7 @@ const maxTrend = computed(() => Math.max(...weekDays.value.flatMap(d => [d.compl
         </div>
         <p v-else class="empty-msg">暂无任务数据</p>
 
-        <!-- Weekly trend -->
+        <!-- 周趋势 -->
         <div class="section-title">近7天</div>
         <div v-if="activeCount || completedCount" class="weekly-trend">
           <div v-for="d in weekDays" :key="d.label" class="trend-column">
@@ -212,7 +212,7 @@ const maxTrend = computed(() => Math.max(...weekDays.value.flatMap(d => [d.compl
         </div>
       </div>
 
-      <!-- Tags tab -->
+      <!-- 标签标签页 -->
       <div v-if="activeTab === 'tags'" class="tab-content">
         <p v-if="!store.tags.length" class="empty-msg">尚未创建标签</p>
         <p v-else-if="!tagDistribution.length" class="empty-msg">任务尚未添加标签</p>
@@ -293,7 +293,7 @@ const maxTrend = computed(() => Math.max(...weekDays.value.flatMap(d => [d.compl
   letter-spacing: 0.03em;
 }
 
-/* Stat cards */
+/* 统计卡片 */
 .stat-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
@@ -322,7 +322,7 @@ const maxTrend = computed(() => Math.max(...weekDays.value.flatMap(d => [d.compl
   color: var(--c-gray-400);
 }
 
-/* Due row */
+/* 截止日期行 */
 .due-row {
   display: flex;
   gap: 6px;
@@ -358,7 +358,7 @@ const maxTrend = computed(() => Math.max(...weekDays.value.flatMap(d => [d.compl
 .due-item.week .due-num, .due-item.week .due-label { color: #D97706; }
 .due-item.month .due-num, .due-item.month .due-label { color: #2563EB; }
 
-/* Quadrant bars */
+/* 象限条 */
 .quadrant-dist {
   display: flex;
   flex-direction: column;
@@ -402,7 +402,7 @@ const maxTrend = computed(() => Math.max(...weekDays.value.flatMap(d => [d.compl
   text-align: left;
 }
 
-/* Weekly trend */
+/* 周趋势 */
 .weekly-trend {
   display: flex;
   gap: 4px;
@@ -459,7 +459,7 @@ const maxTrend = computed(() => Math.max(...weekDays.value.flatMap(d => [d.compl
   display: inline-block;
 }
 
-/* Tags distribution */
+/* 标签分布 */
 .tag-dist-list {
   display: flex;
   flex-direction: column;

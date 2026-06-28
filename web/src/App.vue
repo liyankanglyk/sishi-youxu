@@ -21,7 +21,7 @@ const taskStore = useTaskStore()
 </template>
 
 <style>
-/* ── Global CSS Reset ── */
+/* ── 全局 CSS 重置 ── */
 *,
 *::before,
 *::after {
@@ -130,7 +130,7 @@ const taskStore = useTaskStore()
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ── Dark Theme ── */
+/* ── 深色主题 ── */
 :root.dark {
   --c-gray-50: #18181B;
   --c-gray-100: #27272A;
@@ -168,7 +168,7 @@ const taskStore = useTaskStore()
   color-scheme: dark;
 }
 
-/* Mobile adjustments */
+/* 移动端调整 */
 @media (max-width: 767px) {
   :root {
     --header-height: 48px;

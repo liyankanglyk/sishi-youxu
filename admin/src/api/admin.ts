@@ -1,6 +1,6 @@
 import apiClient from './index'
 
-// ── Types ──
+// ── 类型定义 ──
 
 export interface AdminUser {
   uuid: string
@@ -103,7 +103,7 @@ export interface Announcement {
   updatedAt?: string
 }
 
-// ── Content management types ──
+// ── 内容管理相关类型 ──
 
 export interface AdminTaskListItem {
   uuid: string
@@ -156,10 +156,10 @@ export interface AdminTagDetail {
   updatedAt: string
 }
 
-// ── API ──
+// ── API 方法 ──
 
 export const adminApi = {
-  // Auth
+  // 认证相关
   login(username: string, password: string) {
     return apiClient.post('/admin/auth/tokens', { username, password })
   },
@@ -173,7 +173,7 @@ export const adminApi = {
     return apiClient.get<AdminUser>('/admin/users/me')
   },
 
-  // Users
+  // 用户相关
   listUsers(params?: {
     page?: number; pageSize?: number; keyword?: string
     status?: string; role?: string; startTime?: string; endTime?: string
@@ -211,7 +211,7 @@ export const adminApi = {
     return apiClient.get('/admin/users/export', { responseType: 'blob' })
   },
 
-  // Dashboard
+  // 仪表盘相关
   getStats() {
     return apiClient.get<DashboardStats>('/admin/dashboard/stats')
   },
@@ -219,7 +219,7 @@ export const adminApi = {
     return apiClient.get(`/admin/dashboard/charts/${metric}`)
   },
 
-  // Audit
+  // 审计日志相关
   listAudit(params?: {
     page?: number; pageSize?: number; userUuid?: string
     action?: string; resourceType?: string; startTime?: string; endTime?: string
@@ -230,7 +230,7 @@ export const adminApi = {
     return apiClient.get<AuditEntry>(`/admin/audit/${uuid}`)
   },
 
-  // Feedback
+  // 反馈相关
   listFeedback(params?: { page?: number; pageSize?: number; status?: string }) {
     return apiClient.get<PaginatedResponse<FeedbackEntry>>('/admin/feedback', { params })
   },
@@ -241,14 +241,14 @@ export const adminApi = {
     return apiClient.delete(`/admin/feedback/${uuid}`)
   },
 
-  // Login Logs
+  // 登录日志相关
   listLoginLogs(params?: {
     page?: number; pageSize?: number; status?: string; provider?: string; userUuid?: string
   }) {
     return apiClient.get<PaginatedResponse<LoginLogEntry>>('/admin/login-logs', { params })
   },
 
-  // Sensitive Words
+  // 敏感词相关
   listSensitiveWords(params?: { page?: number; pageSize?: number }) {
     return apiClient.get<PaginatedResponse<SensitiveWord>>('/admin/sensitive-words', { params })
   },
@@ -267,7 +267,7 @@ export const adminApi = {
     })
   },
 
-  // IP Blacklist
+  // IP 黑名单相关
   listIpBlacklist(params?: { page?: number; pageSize?: number }) {
     return apiClient.get<PaginatedResponse<IpBlacklistEntry>>('/admin/security/ip-blacklist', { params })
   },
@@ -278,7 +278,7 @@ export const adminApi = {
     return apiClient.delete(`/admin/security/ip-blacklist/${uuid}`)
   },
 
-  // Announcements
+  // 公告相关
   listAnnouncements(params?: { page?: number; pageSize?: number; type?: string }) {
     return apiClient.get<PaginatedResponse<Announcement>>('/admin/announcements', { params })
   },
@@ -296,7 +296,7 @@ export const adminApi = {
     return apiClient.delete(`/admin/announcements/${uuid}`)
   },
 
-  // Config
+  // 系统配置相关
   getConfig() {
     return apiClient.get<SystemConfig>('/admin/config')
   },
@@ -304,7 +304,7 @@ export const adminApi = {
     return apiClient.patch('/admin/config', data)
   },
 
-  // Content: Tasks
+  // 内容管理：任务
   listAdminTasks(params?: {
     page?: number; pageSize?: number; userUuid?: string
     quadrant?: number; completed?: boolean; tagUuid?: string
@@ -335,7 +335,7 @@ export const adminApi = {
     return apiClient.post('/admin/tasks/batch', data)
   },
 
-  // Content: Tags
+  // 内容管理：标签
   createAdminTag(data: { name: string; color?: string; userUuid?: string }) {
     return apiClient.post<AdminTagListItem>('/admin/tags', data)
   },
@@ -354,7 +354,7 @@ export const adminApi = {
     return apiClient.delete(`/admin/tags/${uuid}`)
   },
 
-  // User-scoped content
+  // 按用户范围的内容
   listUserTasks(userUuid: string, params?: {
     page?: number; pageSize?: number; quadrant?: number; completed?: boolean
   }) {
@@ -364,7 +364,7 @@ export const adminApi = {
     return apiClient.get<PaginatedResponse<AdminTagListItem>>(`/admin/users/${userUuid}/tags`, { params })
   },
 
-  // Quick search helpers for select dropdowns
+  // 用于下拉选择的快速搜索辅助方法
   searchUsers(keyword: string, limit = 20) {
     return apiClient.get<PaginatedResponse<AdminUser>>('/admin/users', { params: { keyword, pageSize: limit } })
   },

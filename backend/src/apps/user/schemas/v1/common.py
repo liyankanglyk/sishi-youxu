@@ -1,9 +1,9 @@
-"""Common DTOs reused across the user API."""
+"""用户端 API 复用的通用 DTO。"""
 from pydantic import BaseModel, Field
 
 
 class PageMeta(BaseModel):
-    """Pagination metadata embedded inside `data` for list endpoints."""
+    """列表接口中嵌入 `data` 的分页元数据。"""
 
     total: int = 0
     page: int = 1

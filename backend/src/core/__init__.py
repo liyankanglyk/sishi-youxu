@@ -1,4 +1,4 @@
-"""Core utilities exposed for convenience imports."""
+"""核心工具，方便外部导入。"""
 from src.core.config import settings
 from src.core.exceptions import (
     BusinessException,

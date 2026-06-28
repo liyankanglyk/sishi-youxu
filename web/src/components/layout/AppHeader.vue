@@ -82,7 +82,7 @@ async function loadMore() {
 
 function handleNotifClick(n: NotificationOut) {
   markRead(n.uuid)
-  // Task reminders: open the task modal
+  // 任务提醒：打开任务弹窗
   if (n.kind === 'task_reminder' && n.taskUuid) {
     notifOpen.value = false
     store.setEditingUuid(n.taskUuid)
@@ -151,7 +151,7 @@ if (typeof window !== 'undefined') {
   ;(window as any).__focusHeaderSearch = focusSearch
 }
 
-// ── Toolbar actions ──
+// ── 工具栏操作 ──
 async function handleNotifToggle() {
   if (ui.notificationsEnabled) {
     ui.setNotificationsEnabled(false)
@@ -184,7 +184,7 @@ function handleImport() { ui.triggerImport() }
       <span class="logo-text">四时有序</span>
     </router-link>
 
-    <!-- Desktop search -->
+    <!-- 桌面端搜索 -->
     <div v-if="!ui.isMobile && auth.isAuthenticated" class="header-center">
       <div class="search-box" @click="focusSearch">
         <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
@@ -204,7 +204,7 @@ function handleImport() { ui.triggerImport() }
       </div>
     </div>
 
-    <!-- Desktop toolbar (home page only) -->
+    <!-- 桌面端工具栏（仅首页） -->
     <div v-if="!ui.isMobile && isHome && auth.isAuthenticated" class="header-toolbar">
       <div class="toolbar-group">
         <button class="icon-btn" :disabled="!store.undoStack.length" title="撤销 (Ctrl+Z)" @click="handleUndo">
@@ -251,7 +251,7 @@ function handleImport() { ui.triggerImport() }
       </button>
     </div>
 
-    <!-- Desktop right area -->
+    <!-- 桌面端右侧区域 -->
     <div v-if="!ui.isMobile" class="header-right">
       <template v-if="auth.isAuthenticated">
         <button v-if="isHome" class="icon-btn" :class="{ active: ui.leftSidebarWidth > 0 }" title="任务列表" @click="ui.toggleLeftSidebar()">
@@ -283,7 +283,7 @@ function handleImport() { ui.triggerImport() }
           </button>
           <Transition name="notif-drop">
             <div v-if="notifOpen" class="notif-dropdown" @click.stop>
-              <!-- Header -->
+              <!-- 头部 -->
               <div class="notif-header">
                 <div class="notif-header-left">
                   <span class="notif-title">通知</span>
@@ -292,9 +292,9 @@ function handleImport() { ui.triggerImport() }
                 <button v-if="unreadCount" class="notif-mark-all" @click="markAllRead">全部已读</button>
               </div>
 
-              <!-- Body -->
+              <!-- 主体 -->
               <div class="notif-body">
-                <!-- Loading skeleton -->
+                <!-- 加载骨架屏 -->
                 <template v-if="notifLoading">
                   <div v-for="i in 3" :key="'sk'+i" class="notif-skeleton">
                     <div class="sk-avatar" />
@@ -306,7 +306,7 @@ function handleImport() { ui.triggerImport() }
                   </div>
                 </template>
 
-                <!-- Item list -->
+                <!-- 通知列表 -->
                 <template v-else-if="notifications.length">
                   <div
                     v-for="n in notifications"
@@ -332,7 +332,7 @@ function handleImport() { ui.triggerImport() }
                   </div>
                 </template>
 
-                <!-- Empty state -->
+                <!-- 空状态 -->
                 <div v-else class="notif-empty">
                   <span class="notif-empty-icon">🔔</span>
                   <span class="notif-empty-text">暂无通知</span>
@@ -340,7 +340,7 @@ function handleImport() { ui.triggerImport() }
                 </div>
               </div>
 
-              <!-- Footer -->
+              <!-- 底部 -->
               <div v-if="notifMeta?.hasMore" class="notif-footer">
                 <button class="notif-load-more" :disabled="notifLoadingMore" @click="loadMore">
                   {{ notifLoadingMore ? '加载中...' : `加载更多 (${notifMeta.total - notifications.length} 条)` }}
@@ -359,19 +359,19 @@ function handleImport() { ui.triggerImport() }
       </template>
     </div>
 
-    <!-- ── Mobile layout ── -->
+    <!-- ── 移动端布局 ── -->
     <template v-if="ui.isMobile && auth.isAuthenticated">
-      <!-- Search icon -->
+      <!-- 搜索图标 -->
       <button class="icon-btn mobile-search-btn" @click="ui.showMobileSearch = true; searchText = ''">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
         </svg>
       </button>
 
-      <!-- New task -->
+      <!-- 新建任务 -->
       <button class="new-task-btn" @click="handleNewTask">+</button>
 
-      <!-- Hamburger -->
+      <!-- 汉堡菜单 -->
       <button class="icon-btn hamburger-btn" :class="{ active: ui.showMobileOverflowMenu }" @click="ui.toggleMobileOverflowMenu()">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
           <line x1="3" y1="6" x2="21" y2="6" />
@@ -380,7 +380,7 @@ function handleImport() { ui.triggerImport() }
         </svg>
       </button>
 
-      <!-- Mobile search overlay -->
+      <!-- 移动端搜索浮层 -->
       <div v-if="ui.showMobileSearch" class="mobile-search-overlay">
         <input
           ref="mobileSearchInput"
@@ -395,7 +395,7 @@ function handleImport() { ui.triggerImport() }
     </template>
   </header>
 
-  <!-- Mobile overflow menu (Teleported to body) -->
+  <!-- 移动端溢出菜单（Teleport 到 body） -->
   <Teleport to="body" v-if="ui.isMobile">
     <Transition name="mobile-menu">
       <div v-if="ui.showMobileOverflowMenu" class="mobile-menu-container">
@@ -406,7 +406,7 @@ function handleImport() { ui.triggerImport() }
             <button @click="ui.closeMobileOverflowMenu()">&times;</button>
           </div>
           <div class="mobile-menu-items">
-            <!-- Undo / Redo -->
+            <!-- 撤销 / 重做 -->
             <div class="menu-row">
               <button :class="{ 'is-disabled': !store.undoStack.length }" @click="handleUndo(); ui.closeMobileOverflowMenu()">
                 <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6L1 9l3 3"/><path d="M2 9h8a4 4 0 014 4v0"/></svg>
@@ -418,20 +418,20 @@ function handleImport() { ui.triggerImport() }
               </button>
             </div>
 
-            <!-- Density -->
+            <!-- 密度 -->
             <button @click="store.cycleViewDensity()">
               <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
               切换密度（{{ { compact: '紧凑', standard: '标准', detailed: '详细' }[store.viewDensity] }}）
             </button>
 
-            <!-- Focus Today -->
+            <!-- 今日焦点 -->
             <button @click="store.setFocusToday(!store.focusToday)">
               📌 今日焦点
               <span v-if="store.focusToday" class="menu-badge-on">开</span>
               <span v-else class="menu-badge-off">关</span>
             </button>
 
-            <!-- Import / Export -->
+            <!-- 导入 / 导出 -->
             <div class="menu-row">
               <button @click="handleImport(); ui.closeMobileOverflowMenu()">
                 <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 4l3 3-3 3M13 7H3M1 13h14"/></svg>
@@ -445,7 +445,7 @@ function handleImport() { ui.triggerImport() }
 
             <div class="menu-divider" />
 
-            <!-- Sidebar toggles -->
+            <!-- 侧边栏开关 -->
             <button v-if="isHome" @click="ui.toggleMobileTaskList(); ui.closeMobileOverflowMenu()">
               <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><line x1="5" y1="6" x2="11" y2="6"/><line x1="5" y1="9" x2="9" y2="9"/></svg>
               任务列表
@@ -457,19 +457,19 @@ function handleImport() { ui.triggerImport() }
 
             <div class="menu-divider" />
 
-            <!-- Notification -->
+            <!-- 通知 -->
             <button @click="handleNotifToggle()">
               {{ ui.notificationsEnabled ? '🔔' : '🔕' }}
               通知（{{ ui.notificationsEnabled ? '开' : '关' }}）
             </button>
 
-            <!-- Theme -->
+            <!-- 主题 -->
             <button @click="ui.toggleTheme()">
               {{ ui.theme === 'dark' ? '☀️' : '🌙' }}
               {{ ui.theme === 'dark' ? '浅色模式' : '深色模式' }}
             </button>
 
-            <!-- Settings -->
+            <!-- 设置 -->
             <button @click="router.push('/settings'); ui.closeMobileOverflowMenu()">
               <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="2.5"/><path d="M8 1.5v1M8 13.5v1M13.5 8h-1M3.5 8h-1M11.9 4.1l-.7.7M4.8 11.2l-.7.7M11.9 11.9l-.7-.7M4.8 4.8l-.7-.7"/></svg>
               设置
@@ -483,7 +483,7 @@ function handleImport() { ui.triggerImport() }
 
 <style scoped>
 /* ══════════════════════════════════════════ */
-/* Base header                               */
+/* 基础头部                                  */
 /* ══════════════════════════════════════════ */
 
 .app-header {
@@ -531,7 +531,7 @@ function handleImport() { ui.triggerImport() }
 }
 
 /* ══════════════════════════════════════════ */
-/* Search                                    */
+/* 搜索                                      */
 /* ══════════════════════════════════════════ */
 
 .header-center {
@@ -585,7 +585,7 @@ function handleImport() { ui.triggerImport() }
 }
 
 /* ══════════════════════════════════════════ */
-/* Desktop toolbar                           */
+/* 桌面端工具栏                              */
 /* ══════════════════════════════════════════ */
 
 .header-toolbar {
@@ -610,7 +610,7 @@ function handleImport() { ui.triggerImport() }
 }
 
 /* ══════════════════════════════════════════ */
-/* Button styles                             */
+/* 按钮样式                                  */
 /* ══════════════════════════════════════════ */
 
 .header-right {
@@ -660,7 +660,7 @@ function handleImport() { ui.triggerImport() }
 .new-task-btn:hover { background: var(--c-brand-600); }
 
 /* ══════════════════════════════════════════ */
-/* Density icon                              */
+/* 密度图标                                  */
 /* ══════════════════════════════════════════ */
 
 .density-icon-btn {
@@ -683,7 +683,7 @@ function handleImport() { ui.triggerImport() }
 .density-detailed .density-bar { background: var(--c-brand-500); }
 
 /* ══════════════════════════════════════════ */
-/* Notification bell + dropdown              */
+/* 通知铃铛 + 下拉                            */
 /* ══════════════════════════════════════════ */
 
 .notif-trigger { position: relative; }
@@ -707,7 +707,7 @@ function handleImport() { ui.triggerImport() }
   box-shadow: 0 0 0 2px var(--surface-primary);
 }
 
-/* Bell pulse when unread */
+/* 未读时铃铛脉冲动画 */
 .notification-btn.has-unread {
   animation: bell-ring 3s ease-in-out infinite;
 }
@@ -721,7 +721,7 @@ function handleImport() { ui.triggerImport() }
   10% { transform: rotate(0); }
 }
 
-/* ── Dropdown ── */
+/* ── 下拉菜单 ── */
 
 .notif-dropdown {
   position: absolute;
@@ -739,7 +739,7 @@ function handleImport() { ui.triggerImport() }
   overflow: hidden;
 }
 
-/* Transition */
+/* 过渡动画 */
 .notif-drop-enter-active {
   transition: opacity 0.18s var(--ease-standard), transform 0.18s var(--ease-standard);
 }
@@ -752,7 +752,7 @@ function handleImport() { ui.triggerImport() }
   transform: translateY(-6px) scale(0.97);
 }
 
-/* ── Header ── */
+/* ── 头部 ── */
 
 .notif-header {
   display: flex;
@@ -797,7 +797,7 @@ function handleImport() { ui.triggerImport() }
   background: var(--c-brand-50);
 }
 
-/* ── Body ── */
+/* ── 主体 ── */
 
 .notif-body {
   flex: 1;
@@ -806,7 +806,7 @@ function handleImport() { ui.triggerImport() }
   padding: 6px;
 }
 
-/* ── Skeleton ── */
+/* ── 骨架屏 ── */
 
 .notif-skeleton {
   display: flex;
@@ -843,7 +843,7 @@ function handleImport() { ui.triggerImport() }
   50%      { opacity: 1; }
 }
 
-/* ── Empty state ── */
+/* ── 空状态 ── */
 
 .notif-empty {
   display: flex;
@@ -867,7 +867,7 @@ function handleImport() { ui.triggerImport() }
   color: var(--c-gray-400);
 }
 
-/* ── Notification item ── */
+/* ── 通知项 ── */
 
 .notif-item {
   display: flex;
@@ -966,7 +966,7 @@ function handleImport() { ui.triggerImport() }
   color: var(--c-gray-400);
 }
 
-/* Unread dot */
+/* 未读小圆点 */
 .notif-unread-dot {
   position: absolute;
   top: 16px;
@@ -981,7 +981,7 @@ function handleImport() { ui.triggerImport() }
   box-shadow: 0 0 0 2px var(--surface-primary);
 }
 
-/* Delete button */
+/* 删除按钮 */
 .notif-delete-btn {
   position: absolute;
   top: 8px;
@@ -1007,17 +1007,17 @@ function handleImport() { ui.triggerImport() }
   color: var(--c-danger);
   background: rgba(220, 38, 38, 0.08);
 }
-/* Push unread dot left when delete btn is present */
+/* 当存在删除按钮时，将未读小圆点向左推 */
 .notif-item .notif-delete-btn ~ .notif-unread-dot {
   right: 30px;
 }
 
-/* Link indicator for task reminders */
+/* 任务提醒的链接指示 */
 .notif-item.is-link:hover .notif-item-title {
   color: var(--c-brand-500);
 }
 
-/* ── Footer ── */
+/* ── 底部 ── */
 
 .notif-footer {
   flex-shrink: 0;
@@ -1046,7 +1046,7 @@ function handleImport() { ui.triggerImport() }
 }
 
 /* ══════════════════════════════════════════ */
-/* User chip                                 */
+/* 用户头像                                  */
 /* ══════════════════════════════════════════ */
 
 .user-chip { display: flex; align-items: center; cursor: pointer; }
@@ -1073,7 +1073,7 @@ function handleImport() { ui.triggerImport() }
 .text-btn:hover { opacity: 0.8; }
 
 /* ══════════════════════════════════════════ */
-/* Mobile header                             */
+/* 移动端头部                                */
 /* ══════════════════════════════════════════ */
 
 @media (max-width: 767px) {
@@ -1107,7 +1107,7 @@ function handleImport() { ui.triggerImport() }
 }
 
 /* ══════════════════════════════════════════ */
-/* Mobile search overlay                     */
+/* 移动端搜索浮层                            */
 /* ══════════════════════════════════════════ */
 
 .mobile-search-overlay {
@@ -1148,7 +1148,7 @@ function handleImport() { ui.triggerImport() }
 </style>
 
 <!-- ══════════════════════════════════════════ -->
-<!-- Mobile overflow menu (unscoped global)    -->
+<!-- 移动端溢出菜单（非 scoped 全局）          -->
 <!-- ══════════════════════════════════════════ -->
 
 <style>
@@ -1263,7 +1263,7 @@ function handleImport() { ui.triggerImport() }
   font-weight: 500;
 }
 
-/* Menu transition */
+/* 菜单过渡动画 */
 .mobile-menu-enter-active,
 .mobile-menu-leave-active {
   transition: opacity 0.25s ease;

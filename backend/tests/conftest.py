@@ -1,12 +1,12 @@
-"""Pytest configuration & shared fixtures.
+"""Pytest 配置与共享 fixtures。
 
-- `client`             — in-process FastAPI TestClient (skeleton-style, per existing test_health).
-- `random_email`       — unique email per test (avoids 409 collisions).
-- `random_phone`       — unique CN phone per test (+86 + 9 random digits).
-- `register_user`      — registers + returns {tokens, identity, user} for downstream reuse.
-- `admin_login`        — logs in default super admin (admin/123456), skips if not seeded.
-- `skip_if_unavailable` — guard so MySQL/Redis-dependent tests skip gracefully
-  (mirrors the existing test_health pattern of returning on 500).
+- `client`             — 进程内 FastAPI TestClient（骨架风格，参照现有 test_health）。
+- `random_email`       — 每个测试唯一的 email（避免 409 冲突）。
+- `random_phone`       — 每个测试唯一的中国手机号（+86 + 9 位随机数字）。
+- `register_user`      — 注册并返回 {tokens, identity, user} 供后续复用。
+- `admin_login`        — 登录默认超级管理员（admin/123456），未 seed 时 skip。
+- `skip_if_unavailable` — 守卫，让 MySQL/Redis 依赖测试优雅 skip
+  （参照现有 test_health 在 500 时直接返回的模式）。
 """
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-# Ensure `src` is importable when running `pytest` from backend/.
+# 确保从 backend/ 运行 `pytest` 时 `src` 可被导入。
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
@@ -29,13 +29,13 @@ if str(BACKEND_ROOT) not in sys.path:
 
 @pytest.fixture(scope="session")
 def base_url() -> str:
-    """API base URL used by external HTTP fixtures."""
+    """供外部 HTTP fixtures 使用的 API 基础 URL。"""
     return os.environ.get("API_BASE_URL", "http://127.0.0.1:8000")
 
 
 @pytest.fixture(scope="session")
 def app():
-    """Lazily import the FastAPI app for in-process TestClient usage."""
+    """惰性导入 FastAPI app，供进程内 TestClient 使用。"""
     from src.main import app as fastapi_app
 
     return fastapi_app
@@ -43,7 +43,7 @@ def app():
 
 @pytest.fixture()
 def client(app):
-    """Per-test TestClient; lifespan fires on first request."""
+    """每个测试一个 TestClient；lifespan 在首次请求时触发。"""
     from fastapi.testclient import TestClient
 
     with TestClient(app) as c:
@@ -52,16 +52,16 @@ def client(app):
 
 @pytest.fixture()
 def skip_if_unavailable(client):
-    """Helper: returns True if `/health` envelope or DB write fails (DB/Redis down).
+    """辅助函数：当 `/health` 响应外壳异常或 DB 写入失败（DB/Redis 不可用）时返回 True。
 
-    Use as `if skip_if_unavailable(...): pytest.skip(...)` in test bodies.
+    在测试体中可这样使用：`if skip_if_unavailable(...): pytest.skip(...)`。
     """
     def _check() -> bool:
         try:
             resp = client.get("/health")
             if resp.status_code != 200:
                 return True
-            # Probe a write endpoint — register with random creds.
+            # 探测写接口 —— 用随机凭证注册。
             email = f"probe-{secrets.token_hex(4)}@example.com"
             r = client.post(
                 "/api/v1/users",
@@ -79,25 +79,25 @@ def skip_if_unavailable(client):
 
 
 # ---------------------------------------------------------------------------
-# Random identity helpers (avoid 409 collisions between tests)
+# 随机身份辅助（避免测试之间的 409 冲突）
 # ---------------------------------------------------------------------------
 
 @pytest.fixture()
 def random_email() -> str:
-    """Unique email per test call."""
+    """每次测试调用一个唯一的 email。"""
     return f"test-{secrets.token_hex(6)}@example.com"
 
 
 @pytest.fixture()
 def random_phone() -> str:
-    """Unique +86 phone per test call (last 9 digits randomized)."""
+    """每次测试调用一个唯一的 +86 手机号（最后 9 位随机）。"""
     suffix = "".join(str(secrets.randbelow(10)) for _ in range(9))
     return f"+86 1{suffix[:1]}{suffix[1:9]}"
 
 
 @pytest.fixture()
 def strong_password() -> str:
-    """Password that satisfies the spec (>= 8 chars, mixed case + digit)."""
+    """满足规范的密码（>= 8 字符，含大小写 + 数字）。"""
     return f"Test{secrets.token_hex(4)}1"  # always contains upper/lower/digit, >= 12 chars
 
 
@@ -107,16 +107,16 @@ def strong_password() -> str:
 
 @pytest.fixture()
 def register_user(client, random_email, strong_password):
-    """Register a fresh user; return a callable that yields user context.
+    """注册一个新用户；返回一个可调用对象以产出用户上下文。
 
-    Usage:
-        ctx = register_user()                # default email/password
+    用法：
+        ctx = register_user()                # 使用默认 email/password
         ctx = register_user(email=..., nickname=...)
-        ctx["tokens"]["access_token"]         # Bearer header value
-        ctx["user"]["uuid"]                   # user UUID
-        ctx["identity"]["email"]              # login identifier
+        ctx["tokens"]["access_token"]         # Bearer 头取值
+        ctx["user"]["uuid"]                   # 用户 UUID
+        ctx["identity"]["email"]              # 登录标识
 
-    Teardown: 硬删除本次测试注册的所有 User（含 AuthIdentity / RefreshToken
+    Teardown：硬删除本次测试注册的所有 User（含 AuthIdentity / RefreshToken
     级联）+ 头像本地文件，保证 DB 不被测试数据污染。
     """
     created_uuids: list[str] = []
@@ -167,7 +167,7 @@ def register_user(client, random_email, strong_password):
 
 @pytest.fixture()
 def auth_headers(register_user):
-    """Convenience: `Authorization: Bearer <access_token>` for the registered user."""
+    """便捷方法：为已注册用户生成 `Authorization: Bearer <access_token>` 头。"""
     def _headers() -> dict[str, str]:
         ctx = register_user()
         return {"Authorization": f"Bearer {ctx['tokens']['access_token']}"}
@@ -181,10 +181,10 @@ def auth_headers(register_user):
 
 @pytest.fixture()
 def admin_login(client):
-    """Return a callable that logs in the default super admin.
+    """返回一个可调用对象，用于登录默认超级管理员。
 
-    Skips the calling test if admin/123456 is not seeded (returns None and
-    raises pytest.skip on use).
+    若 admin/123456 未 seed，则跳过调用方测试（返回 None，使用时
+    触发 pytest.skip）。
     """
     import pytest
 

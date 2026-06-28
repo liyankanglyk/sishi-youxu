@@ -1,7 +1,7 @@
-"""Application middleware: CORS, request ID, client platform detection, IP blacklist, uniform error handling.
+"""应用中间件：CORS、请求 ID、客户端平台识别、IP 黑名单、统一错误处理。
 
-Skeleton: wired in src.main; handlers do the minimum so the framework boots
-without MySQL/Redis being available.
+骨架：在 src.main 中挂载；处理器仅做最小工作，使框架在 MySQL/Redis
+不可用时仍可启动。
 
 平台识别：`X-Client-Platform` 取值约定为 `web` / `capacitor` / `miniapp`，
 落到 `request.state.client_platform`，便于审计日志、限流策略、Sensitive-Word
@@ -39,7 +39,7 @@ _IP_BLACKLIST_SKIP_PREFIXES = (
 
 
 class RequestIDMiddleware(BaseHTTPMiddleware):
-    """Attach a unique `X-Request-ID` to every request/response."""
+    """为每个请求/响应附加唯一的 `X-Request-ID`。"""
 
     async def dispatch(self, request: Request, call_next):  # type: ignore[override]
         request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex
@@ -178,7 +178,7 @@ class IpBlacklistMiddleware(BaseHTTPMiddleware):
 
 
 class BusinessExceptionMiddleware(BaseHTTPMiddleware):
-    """Translate BusinessException into the spec's failure envelope."""
+    """将 BusinessException 翻译为规范定义的失败响应外壳。"""
 
     async def dispatch(self, request: Request, call_next):  # type: ignore[override]
         try:
@@ -191,7 +191,7 @@ class BusinessExceptionMiddleware(BaseHTTPMiddleware):
                 status_code=exc.http_status,
                 content=fail(exc.code, exc.message, exc.detail),
             )
-        except Exception as exc:  # pragma: no cover - last-resort handler
+        except Exception as exc:  # pragma: no cover - 兜底处理器
             logger.exception("unhandled exception: %s", exc)
             detail = {"hint": str(exc)} if settings.DEBUG else {}
             return JSONResponse(
@@ -201,9 +201,9 @@ class BusinessExceptionMiddleware(BaseHTTPMiddleware):
 
 
 def install_middlewares(app: FastAPI) -> None:
-    """Register all middlewares on the FastAPI app.
+    """在 FastAPI app 上注册所有中间件。
 
-    Order matters: outermost middleware is registered first.
+    顺序很重要：最外层中间件最先注册。
     """
     app.add_middleware(
         CORSMiddleware,

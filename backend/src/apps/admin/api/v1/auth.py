@@ -1,4 +1,4 @@
-"""Admin authentication endpoints — Phase 1 implementation."""
+"""管理后台认证端点 —— Phase 1 实现。"""
 
 from __future__ import annotations
 
