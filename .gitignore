@@ -15,6 +15,7 @@ desktop.ini
 
 # ---- 编辑器 / IDE ----
 .idea/
+.claude/
 .vscode/
 *.iml
 *.sublime-project
@@ -141,3 +142,4 @@ node_modules/
 *.tar.gz
 *.zip
 .Dockerfile.local
+
