@@ -24,7 +24,7 @@
 
 - **用户端**：四象限拖拽画布 + 离线优先同步
 - **管理后台**：用户管理、内容审核、数据仪表盘
-- **多端兼容**：Web / PWA / 微信小程序（后端 API 已就位）
+- **多端兼容**：Web / PWA / 微信小程序（后端 API 已就位，web端已基本完成，测试后再继续开发移动端）
 
 ---
 
@@ -75,17 +75,38 @@
 
 ## 📸 系统截图
 
-> 📌 截图待补充 — 请在此处放置系统截图。
-
-<!--
 ### 用户端
-![四象限画布](docs/screenshots/quadrant.png)
-![任务编辑](docs/screenshots/task-edit.png)
+![image-20260628221758125](README/docs/assets/image-20260628221758125.png)
+
+![image-20260628221907958](README/docs/assets/image-20260628221907958.png)
+
+![image-20260628221945966](README/docs/assets/image-20260628221945966.png)![image-20260628222029667](README/docs/assets/image-20260628222029667.png)
+
+![image-20260628222318960](README/docs/assets/image-20260628222318960.png)
+
+![image-20260628222347122](README/docs/assets/image-20260628222347122.png)
+
+![image-20260628222411503](README/docs/assets/image-20260628222411503.png)
 
 ### 管理后台
-![仪表盘](docs/screenshots/admin-dashboard.png)
-![用户管理](docs/screenshots/admin-users.png)
--->
+
+![image-20260628222522333](README/docs/assets/image-20260628222522333.png)
+
+![image-20260628222532228](README/docs/assets/image-20260628222532228.png)
+
+![image-20260628223401262](README/docs/assets/image-20260628223401262.png)
+
+![image-20260628223430508](README/docs/assets/image-20260628223430508.png)
+
+![image-20260628222558110](README/docs/assets/image-20260628222558110.png)
+
+![image-20260628222543122](README/docs/assets/image-20260628222543122.png)
+
+![image-20260628223118300](README/docs/assets/image-20260628223118300.png)
+
+![image-20260628222606370](README/docs/assets/image-20260628222606370.png)
+
+
 
 ---
 
@@ -112,9 +133,12 @@ cd backend
 pip install -r requirements.txt
 cp .env.example .env              # 按需修改数据库/Redis/JWT 配置
 
-# 初始化数据库（含管理员账号 + 演示数据）
+# 初始化数据库
 mysql -u root -p < scripts/init_db.sql
 mysql -u root -p sishi_youxu < scripts/seed.sql
+
+# 创建默认管理员（admin / 123456）
+python scripts/init_admin.py
 
 # 启动服务
 python -m uvicorn src.main:app --reload --port 8000
@@ -123,6 +147,7 @@ python -m uvicorn src.main:app --reload --port 8000
 启动后可访问：
 - 健康检查：http://127.0.0.1:8000/health
 - API 文档：http://127.0.0.1:8000/docs
+- ReDoc：http://127.0.0.1:8000/redoc
 
 ### 3. 启动用户端
 
