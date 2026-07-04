@@ -228,7 +228,9 @@
 ```json
 {
   "provider": "password | phone_sms | email_code | wechat",
-  "payload": { "...": "依 provider 不同" }
+  "payload": { "...": "依 provider 不同" },
+  "captchaId": "可选，登录失败≥2次后必填",
+  "captchaSolution": "可选，对应 captchaId 的答案"
 }
 ```
 
@@ -240,6 +242,12 @@
 | `phone_sms` | `phone` + `code` | 先调 `/auth/sms/send` |
 | `email_code` | `email` + `code` | 先调 `/auth/email/send` |
 | `wechat` | 单独走 `/auth/wechat/login` | 此处 provider=wechat 也可，但通常用专用接口 |
+
+**安全加固（v2）**：
+- 同一 identifier **连续失败 5 次** → 账号锁定 15 分钟，返回 `423 AUTH_ACCOUNT_LOCKED`
+- 同一 identifier **失败 2 次后必须**提供 `captchaId` + `captchaSolution`，否则返回 `400 AUTH_CAPTCHA_REQUIRED`
+- 锁定期间即使密码正确也返回 `423 AUTH_ACCOUNT_LOCKED`
+- 锁定状态同时存 Redis（快速判定）和 DB 字段 `user.locked_until`（持久化，跨重启保留）
 
 响应（`LoginResponse`）：
 
@@ -264,7 +272,7 @@
 }
 ```
 
-错误：`401 AUTH_INVALID_CREDENTIALS` / `400 AUTH_CODE_INVALID` / `400 AUTH_CAPTCHA_INVALID` / `429 RATE_LIMITED`。
+错误：`401 AUTH_INVALID_CREDENTIALS` / `400 AUTH_CODE_INVALID` / `400 AUTH_CAPTCHA_INVALID` / `400 AUTH_CAPTCHA_REQUIRED` / `423 AUTH_ACCOUNT_LOCKED` / `429 RATE_LIMITED`。
 
 #### `POST /auth/tokens/refresh`
 
@@ -432,7 +440,9 @@ Query：`?email=user@example.com`。
 {
   "nickname": "用户名",
   "provider": "password | phone_sms | email_code",
-  "payload": { "依 provider" }
+  "payload": { "依 provider" },
+  "captchaId": "图形验证码 ID（v2 安全加固：必填）",
+  "captchaSolution": "图形验证码答案（v2 安全加固：必填）"
 }
 ```
 
@@ -442,8 +452,14 @@ Query：`?email=user@example.com`。
 | `phone_sms` | `phone` + `code` |
 | `email_code` | `email` + `code` |
 
+**安全加固（v2）**：
+- 注册时**必须**校验图形验证码，先调 `GET /auth/captcha` 拿 captchaId 和图片
+- CAPTCHA 校验失败 → `400 AUTH_CAPTCHA_INVALID`
+- 缺失 CAPTCHA → `400 AUTH_CAPTCHA_REQUIRED`
+- 注册成功后自动登录并签发 JWT
+
 成功 `201` → `LoginResponse`（`is_new_user: true`）。  
-错误：`400 VALIDATION_ERROR` / `409 USER_ALREADY_EXISTS` / `400 AUTH_CODE_INVALID`。
+错误：`400 VALIDATION_ERROR` / `400 AUTH_CAPTCHA_REQUIRED` / `400 AUTH_CAPTCHA_INVALID` / `409 USER_ALREADY_EXISTS` / `400 AUTH_CODE_INVALID`。
 
 > ❗ 旧文档中的 `POST /users/phone` 和 `POST /users/email` 已合并为 `POST /users`，请勿再调用。
 
@@ -934,25 +950,38 @@ Query：
 > 前缀：`/api/v1/admin`，鉴权：`Authorization: Bearer <admin_access_token>`，依赖项：`RequireAdmin`（校验 `role ∈ {admin, super_admin}`）。
 > 错误：`401 AUTH_TOKEN_*` / `403 ADMIN_FORBIDDEN`。
 
-### 1) 管理员认证 — 3 条
+### 1) 管理员认证 — 5 条
 
 | 方法 | 路径 | 鉴权 | 说明 |
 | --- | --- | --- | --- |
-| `POST` | `/admin/auth/tokens` | 公开 | 管理员登录（username + password） |
+| `POST` | `/admin/auth/tokens` | 公开 | 管理员登录（**v2：必须含 captchaId/captchaSolution**） |
 | `POST` | `/admin/auth/tokens/refresh` | 公开 | 刷新管理员 token |
 | `DELETE` | `/admin/auth/tokens` | 公开* | 管理员登出（撤销 refresh_token） |
 | `POST` | `/admin/auth/password` | RequireAdmin | 管理员修改自己密码 |
+| `GET` | `/admin/auth/captcha` | 公开 | **v2 新增**：获取管理端图形验证码 |
+| `POST` | `/admin/auth/captcha/verify` | 公开 | **v2 新增**：校验管理端图形验证码 |
 
 > `DELETE /admin/auth/tokens` 业务上需 refresh_token，但路由层不强制管理员鉴权。
 
 #### `POST /admin/auth/tokens`
 
 ```json
-{ "username": "admin", "password": "123456" }
+{
+  "username": "admin",
+  "password": "123456",
+  "captchaId": "图形验证码 ID（v2 安全加固：必填）",
+  "captchaSolution": "图形验证码答案（v2 安全加固：必填）"
+}
 ```
 
+**安全加固（v2）**：
+- 登录时**必须**校验图形验证码（CAPTCHA 校验失败不消耗登录失败次数）
+- 连续失败 3 次 → 账号锁定 15 分钟，返回 `423 AUTH_ACCOUNT_LOCKED`
+- 锁定期间即使密码正确也返回 `423`
+- 锁定状态存 Redis（快速）+ DB 字段 `user.locked_until`（持久化）
+
 → `LoginResponse`（`user.role` 为 `admin` 或 `super_admin`）。  
-错误：`401 AUTH_INVALID_CREDENTIALS` / `403 ADMIN_FORBIDDEN`（非管理员账号）。
+错误：`400 AUTH_CAPTCHA_REQUIRED` / `400 AUTH_CAPTCHA_INVALID` / `401 AUTH_INVALID_CREDENTIALS` / `403 ADMIN_FORBIDDEN`（非管理员账号）/ `423 AUTH_ACCOUNT_LOCKED`。
 
 #### `POST /admin/auth/tokens/refresh`
 
@@ -967,6 +996,11 @@ Query：
 ```
 
 → `{ revokedCount }`。
+
+#### `GET /admin/auth/captcha` — 图形验证码
+
+→ 与用户端 `GET /auth/captcha` 一致，但前缀为 `/admin/auth` 便于管理端独立识别。  
+dev/test 环境响应额外包含 `solution` 字段便于自动化测试。
 
 #### `POST /admin/auth/password`
 
@@ -1743,4 +1777,5 @@ WS /admin/ws/notifications?token=<ws-ticket>
 | 2026-06-27 | 全文重写 + 内容管理实现：补齐 67 条端点（auth/users/tasks/tags/notifications/feedback/sync 等）；新增管理端内容管理 10 条端点（admin/tasks, admin/tags, admin/users/{uuid}/tasks, admin/users/{uuid}/tags），总计 98 条端点 |
 | 2026-06-28 | 新增：`POST /admin/auth/password`（管理员修改自己密码）、`POST /admin/users/{uuid}/reset-password`（管理员重置用户密码）；force-logout 现在同时通过 Redis 失效 access token；总端点 102（100 HTTP + 2 WS） |
 | 2026-06-28 | 文档对齐：总端点数统一为 100（98 HTTP + 2 WS）；同步 entities 参数名规范（push 用单数 entity 值 task/tag/taskTag/checklistItems，pull 响应顶层用复数键 tasks/tags/taskTags/checklistItems）；路由数与 CLAUDE.md 对齐 |
+| 2026-07-04 | **Phase 4.5 安全加固**：登录/注册接口增加 `captchaId` + `captchaSolution` 字段（用户登录失败 2 次后强制 / 注册必填 / 管理员必填）；新增 `GET/POST /admin/auth/captcha[verify]` 端点；新增错误码 `AUTH_ACCOUNT_LOCKED`（用户 5 次/管理员 3 次失败锁定 15 分钟）、`AUTH_CAPTCHA_REQUIRED`、`AUTH_CAPTCHA_INVALID`；JWT claims 含 admin/super_admin 时强制 DB 二次校验角色；`SecurityHeadersMiddleware` 新增 HSTS/X-Content-Type-Options/X-Frame-Options/Referrer-Policy 响应头；端点总数不变（仍 100 HTTP + 2 WS） |
 | 2026-06-27 | 全文重写：基于 OpenAPI 67 条端点补齐缺失路由（ws-ticket、sms/email、captcha、reminder-channels、admin dashboard/charts/audit/feedback/config、sensitive-words/ip-blacklist/announcements skeleton 等），修正 `/admin/auth/tokens` 登出方法为 `DELETE`、移除已废弃的 `/users/phone` 与 `/users/email`、补全错误码、限流、WebSocket 错误码 |

@@ -15,6 +15,13 @@ from datetime import datetime, date
 from fastapi import APIRouter, Query
 from sqlalchemy import func, select, update
 
+from src.core.cache import (
+    UNREAD_COUNT_TTL,
+    NOTIF_LIST_TTL,
+    cache_get,
+    cache_set,
+    invalidate_user_notifications,
+)
 from src.core.deps import DbSession, RequiredUser
 from src.core.exceptions import NotFoundException
 from src.core.response import ok
@@ -28,12 +35,14 @@ async def _sync_all(user_uuid: str, db) -> None:
     """为当前用户生成所有待生成的通知：
     1. 过期/今日到期的任务提醒
     2. 用户尚未查看的系统公告
+
+    优化：添加 LIMIT 限制、使用范围查询代替 func.date()。
     """
     today = date.today()
     now = datetime.utcnow()
     changed = False
 
-    # ── 1. Task reminders ──
+    # ── 1. Task reminders（限制最多 200 条，避免大用户全表扫描）──
     overdue_tasks = (
         await db.execute(
             select(Task).where(
@@ -41,11 +50,14 @@ async def _sync_all(user_uuid: str, db) -> None:
                 Task.completed.is_(False),
                 Task.deleted_at.is_(None),
                 Task.due_date <= today,
-            )
+            ).limit(200)
         )
     ).scalars().all()
 
     if overdue_tasks:
+        # 使用范围查询代替 func.date()，以便利用 idx_user_created 索引
+        today_start = datetime(today.year, today.month, today.day, 0, 0, 0)
+        today_end = datetime(today.year, today.month, today.day, 23, 59, 59)
         already_notified = set(
             (
                 await db.execute(
@@ -53,7 +65,8 @@ async def _sync_all(user_uuid: str, db) -> None:
                         Notification.user_uuid == user_uuid,
                         Notification.kind == NotificationKind.task_reminder,
                         Notification.task_uuid.in_([t.uuid for t in overdue_tasks]),
-                        func.date(Notification.created_at) == today,
+                        Notification.created_at >= today_start,
+                        Notification.created_at <= today_end,
                     )
                 )
             ).scalars().all()
@@ -74,13 +87,13 @@ async def _sync_all(user_uuid: str, db) -> None:
             )
             changed = True
 
-    # ── 2. Announcements ──
+    # ── 2. Announcements（限制 100 条）──
     active_anns = (
         await db.execute(
             select(Announcement).where(
                 Announcement.deleted_at.is_(None),
                 Announcement.is_active.is_(True),
-            )
+            ).limit(100)
         )
     ).scalars().all()
 
@@ -116,11 +129,24 @@ async def _sync_all(user_uuid: str, db) -> None:
 
 
 # =============================================================================
+# 同步通知（独立端点，不再每次列表/未读数时触发）
+# =============================================================================
+
+
+@router.post("/sync", summary="同步通知", description="为当前用户生成待推送的通知（过期任务提醒 + 未读公告）")
+async def sync_notifications(current: RequiredUser, db: DbSession) -> dict:
+    await _sync_all(current["uuid"], db)
+    # 同步可能生成新通知 → 失效缓存
+    await invalidate_user_notifications(current["uuid"])
+    return ok({"synced": True})
+
+
+# =============================================================================
 # 列表
 # =============================================================================
 
 
-@router.get("", summary="获取通知列表", description="分页查询当前用户的通知列表")
+@router.get("", summary="获取通知列表", description="分页查询当前用户的通知列表（Redis 缓存 30 秒）")
 async def list_notifications(
     current: RequiredUser,
     db: DbSession,
@@ -128,7 +154,11 @@ async def list_notifications(
     page: int = Query(default=1, ge=1, description="页码"),
     pageSize: int = Query(default=20, ge=1, le=100, alias="pageSize", description="每页数量"),
 ) -> dict:
-    await _sync_all(current["uuid"], db)
+    # 仅缓存无筛选第 1 页（最频繁的查询）
+    if isRead is None and page == 1 and pageSize == 20:
+        cached = await cache_get("notif", current["uuid"])
+        if cached is not None:
+            return ok(cached)
 
     stmt = select(Notification).where(
         Notification.user_uuid == current["uuid"],
@@ -160,7 +190,7 @@ async def list_notifications(
         for n in rows
     ]
 
-    return ok({
+    result = {
         "items": items,
         "meta": {
             "total": total,
@@ -168,7 +198,13 @@ async def list_notifications(
             "pageSize": pageSize,
             "hasMore": (page * pageSize) < total,
         },
-    })
+    }
+
+    # 缓存无筛选第 1 页
+    if isRead is None and page == 1 and pageSize == 20:
+        await cache_set("notif", current["uuid"], value=result, ttl=NOTIF_LIST_TTL)
+
+    return ok(result)
 
 
 # =============================================================================
@@ -176,16 +212,22 @@ async def list_notifications(
 # =============================================================================
 
 
-@router.get("/unread-count", summary="通知未读数量", description="获取当前用户未读通知数量")
+@router.get("/unread-count", summary="通知未读数量", description="获取当前用户未读通知数量（Redis 缓存 15 秒）")
 async def unread_count(current: RequiredUser, db: DbSession) -> dict:
-    await _sync_all(current["uuid"], db)
+    # 先查缓存（高频轮询端点，每 30s 一次）
+    cached = await cache_get("unread", current["uuid"])
+    if cached is not None:
+        return ok(cached)
+
     stmt = select(func.count(Notification.uuid)).where(
         Notification.user_uuid == current["uuid"],
         Notification.is_read.is_(False),
         Notification.deleted_at.is_(None),
     )
     count = (await db.execute(stmt)).scalar() or 0
-    return ok({"unreadCount": count})
+    result = {"unreadCount": count}
+    await cache_set("unread", current["uuid"], value=result, ttl=UNREAD_COUNT_TTL)
+    return ok(result)
 
 
 # =============================================================================
@@ -208,6 +250,7 @@ async def mark_read(uuid: str, current: RequiredUser, db: DbSession) -> dict:
     if result.rowcount == 0:
         raise NotFoundException("通知不存在", code="NOTIFICATION_NOT_FOUND")
     await db.commit()
+    await invalidate_user_notifications(current["uuid"])
 
     return ok({
         "uuid": uuid,
@@ -235,6 +278,7 @@ async def mark_all_read(current: RequiredUser, db: DbSession) -> dict:
     )
     result = await db.execute(stmt)
     await db.commit()
+    await invalidate_user_notifications(current["uuid"])
 
     return ok({"affected": result.rowcount or 0})
 
@@ -259,5 +303,6 @@ async def delete_notification(uuid: str, current: RequiredUser, db: DbSession) -
     if result.rowcount == 0:
         raise NotFoundException("通知不存在", code="NOTIFICATION_NOT_FOUND")
     await db.commit()
+    await invalidate_user_notifications(current["uuid"])
 
     return ok(None)

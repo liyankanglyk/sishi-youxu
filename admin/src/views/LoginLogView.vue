@@ -9,6 +9,10 @@ const page = ref(1)
 const pageSize = ref(20)
 const loading = ref(false)
 
+// 详情抽屉
+const detailVisible = ref(false)
+const detailEntry = ref<LoginLogEntry | null>(null)
+
 // 筛选条件
 const statusFilter = ref('')
 const providerFilter = ref('')
@@ -81,6 +85,11 @@ function formatTime(iso: string) {
   return new Date(iso).toLocaleString('zh-CN')
 }
 
+function showDetail(row: LoginLogEntry) {
+  detailEntry.value = row
+  detailVisible.value = true
+}
+
 onMounted(fetch)
 </script>
 
@@ -129,13 +138,14 @@ onMounted(fetch)
       <el-button @click="handleReset">重置</el-button>
     </div>
 
-    <el-table :data="items" v-loading="loading" stripe>
+    <el-table :data="items" v-loading="loading" stripe @row-click="showDetail" style="cursor:pointer">
       <el-table-column label="时间" width="170">
         <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
       </el-table-column>
       <el-table-column label="用户" min-width="130">
         <template #default="{ row }">
-          <span v-if="row.userUuid" class="uuid-text">{{ row.userUuid.slice(0, 8) }}…</span>
+          <span v-if="row.userNickname" :title="row.userUuid">{{ row.userNickname }}</span>
+          <span v-else-if="row.userUuid" class="uuid-text" :title="row.userUuid">{{ row.userUuid.slice(0, 8) }}…</span>
           <span v-else class="muted-text">-</span>
         </template>
       </el-table-column>
@@ -165,6 +175,41 @@ onMounted(fetch)
       layout="total, prev, pager, next"
       @current-change="fetch"
     />
+
+    <!-- 详情抽屉 -->
+    <el-drawer v-model="detailVisible" title="登录日志详情" size="480px">
+      <template v-if="detailEntry">
+        <el-descriptions :column="1" border>
+          <el-descriptions-item label="登录时间">{{ formatTime(detailEntry.createdAt) }}</el-descriptions-item>
+          <el-descriptions-item label="用户">
+            <span v-if="detailEntry.userNickname" :title="detailEntry.userUuid">{{ detailEntry.userNickname }}</span>
+            <span v-else-if="detailEntry.userUuid" class="uuid-text">{{ detailEntry.userUuid }}</span>
+            <span v-else>-</span>
+          </el-descriptions-item>
+          <el-descriptions-item label="登录方式">{{ providerLabels[detailEntry.provider] || detailEntry.provider }}（{{ detailEntry.provider }}）</el-descriptions-item>
+          <el-descriptions-item label="状态">
+            <el-tag :type="detailEntry.loginStatus === 'success' ? 'success' : 'danger'" size="small">
+              {{ detailEntry.loginStatus === 'success' ? '成功' : '失败' }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item v-if="detailEntry.loginStatus === 'failed'" label="失败原因">{{ detailEntry.failReason || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="IP 地址">{{ detailEntry.ipAddress || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="User-Agent" class-name="ua-cell">
+            <div class="ua-text">{{ detailEntry.userAgent || '-' }}</div>
+          </el-descriptions-item>
+          <el-descriptions-item label="请求方法">{{ detailEntry.requestMethod || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="请求路径" class-name="ua-cell">
+            <div class="path-text">{{ detailEntry.requestPath || '-' }}</div>
+          </el-descriptions-item>
+          <el-descriptions-item label="请求体（已脱敏）" class-name="body-cell">
+            <pre class="body-pre">{{ detailEntry.requestBody || '（空）' }}</pre>
+          </el-descriptions-item>
+          <el-descriptions-item label="日志 UUID" class-name="uuid-cell">
+            <span class="uuid-text-full">{{ detailEntry.uuid }}</span>
+          </el-descriptions-item>
+        </el-descriptions>
+      </template>
+    </el-drawer>
   </div>
 </template>
 
@@ -177,6 +222,26 @@ onMounted(fetch)
   margin-bottom: 1rem;
   flex-wrap: wrap;
 }
-.uuid-text { color: #94a3b8; font-family: monospace; font-size: 12px; }
-.muted-text { color: #cbd5e1; }
+.uuid-text { color: #64748b; font-family: monospace; font-size: 12px; }
+.uuid-text-full { color: #64748b; font-family: monospace; font-size: 12px; word-break: break-all; }
+.muted-text { color: #94a3b8; }
+.ua-text { font-family: monospace; font-size: 12px; word-break: break-all; line-height: 1.6; }
+.path-text { font-family: monospace; font-size: 12px; word-break: break-all; line-height: 1.6; }
+.body-pre {
+  margin: 0;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-family: monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 240px;
+  overflow-y: auto;
+  max-width: 380px;
+}
+:deep(.ua-cell .el-descriptions__content) { max-width: 380px; }
+:deep(.uuid-cell .el-descriptions__content) { max-width: 380px; }
 </style>

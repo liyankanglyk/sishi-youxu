@@ -6,6 +6,13 @@
 -- 存储引擎：InnoDB
 -- 表前缀：sishiyouxu_
 --
+-- Phase 4.5 安全加固 (2026-07-04)：
+--   - sishiyouxu_user 表新增字段：
+--     · failed_login_attempts INT NOT NULL DEFAULT 0  -- 连续登录失败次数
+--     · locked_until          DATETIME DEFAULT NULL     -- 锁定截止时间
+--   - 新增索引：idx_user_locked_until (locked_until)
+--   - 脚本末尾包含幂等迁移段（如已存在则跳过），便于给现有库追加
+--
 -- 兼容要点：
 --   - sishiyouxu_auth_identity.provider ENUM 包含 'wechat'，供微信小程序登录
 --   - sishiyouxu_notification 新增 `template_id` 列 + 'wechat_subscribe' kind
@@ -31,6 +38,9 @@ CREATE DATABASE `sishi_youxu`
 
 USE `sishi_youxu`;
 
+-- 静默执行 DROP/CREATE TABLE，避免列出大量 warning
+SET sql_notes = 0;
+
 -- ---------------------------------------------------------------------------
 -- 2. 用户域
 -- ---------------------------------------------------------------------------
@@ -38,21 +48,24 @@ USE `sishi_youxu`;
 -- 用户主表
 DROP TABLE IF EXISTS `sishiyouxu_user`;
 CREATE TABLE `sishiyouxu_user` (
-    `uuid`        CHAR(36)    NOT NULL                    COMMENT '主键 UUID',
-    `nickname`    VARCHAR(50) NOT NULL DEFAULT ''         COMMENT '昵称',
-    `avatar_url`  VARCHAR(500)        DEFAULT NULL         COMMENT '头像 URL',
-    `role`        VARCHAR(20) NOT NULL DEFAULT 'user'
-                  COMMENT '角色: user / admin / super_admin',
-    `status`      VARCHAR(20) NOT NULL DEFAULT 'active'
-                  COMMENT '状态: active / disabled / banned / deleted',
-    `locale`      VARCHAR(10) NOT NULL DEFAULT 'zh-CN'    COMMENT '语言偏好',
-    `created_at`  DATETIME    NOT NULL                    COMMENT '创建时间',
-    `updated_at`  DATETIME    NOT NULL                    COMMENT '更新时间',
-    `deleted_at`  DATETIME             DEFAULT NULL       COMMENT '软删除时间',
+    `uuid`                   CHAR(36)    NOT NULL                    COMMENT '主键 UUID',
+    `nickname`               VARCHAR(50) NOT NULL DEFAULT ''         COMMENT '昵称',
+    `avatar_url`             VARCHAR(500)        DEFAULT NULL         COMMENT '头像 URL',
+    `role`                   VARCHAR(20) NOT NULL DEFAULT 'user'
+                             COMMENT '角色: user / admin / super_admin',
+    `status`                 VARCHAR(20) NOT NULL DEFAULT 'active'
+                             COMMENT '状态: active / disabled / banned / deleted',
+    `locale`                 VARCHAR(10) NOT NULL DEFAULT 'zh-CN'    COMMENT '语言偏好',
+    `failed_login_attempts`  INT         NOT NULL DEFAULT 0          COMMENT '连续登录失败次数',
+    `locked_until`           DATETIME             DEFAULT NULL        COMMENT '锁定截止时间（NULL=未锁定）',
+    `created_at`             DATETIME    NOT NULL                    COMMENT '创建时间',
+    `updated_at`             DATETIME    NOT NULL                    COMMENT '更新时间',
+    `deleted_at`             DATETIME             DEFAULT NULL        COMMENT '软删除时间',
     PRIMARY KEY (`uuid`),
-    KEY `idx_role_status` (`role`, `status`),
-    KEY `idx_created_at`  (`created_at`),
-    KEY `idx_deleted_at`  (`deleted_at`)
+    KEY `idx_role_status`      (`role`, `status`),
+    KEY `idx_created_at`       (`created_at`),
+    KEY `idx_deleted_at`       (`deleted_at`),
+    KEY `idx_user_locked_until` (`locked_until`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户主表';
 
 -- 认证身份表（同一 user 可关联多种 provider，含 wechat）
@@ -125,7 +138,8 @@ CREATE TABLE `sishiyouxu_task` (
     KEY `idx_user_due_date`  (`user_uuid`, `due_date`),
     KEY `idx_user_remind`    (`remind_at`, `reminder_state`),
     KEY `idx_updated_at`     (`updated_at`),
-    KEY `idx_deleted_at`     (`deleted_at`)
+    KEY `idx_deleted_at`     (`deleted_at`),
+    KEY `idx_user_deleted_sort` (`user_uuid`, `deleted_at`, `sort_order`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='任务表';
 
 -- 标签表
@@ -225,35 +239,42 @@ CREATE TABLE `sishiyouxu_feedback` (
 
 DROP TABLE IF EXISTS `sishiyouxu_audit_log`;
 CREATE TABLE `sishiyouxu_audit_log` (
-    `uuid`          CHAR(36)     NOT NULL                COMMENT '主键 UUID',
-    `user_uuid`     CHAR(36)              DEFAULT NULL   COMMENT '操作用户',
-    `action`        VARCHAR(100) NOT NULL                COMMENT '操作类型',
-    `resource_type` VARCHAR(50)  NOT NULL                COMMENT '资源类型',
-    `resource_uuid` CHAR(36)              DEFAULT NULL   COMMENT '资源 UUID',
-    `ip_address`    VARCHAR(45)           DEFAULT NULL   COMMENT 'IP 地址',
-    `user_agent`    VARCHAR(500)          DEFAULT NULL   COMMENT 'User Agent',
-    `detail`        JSON                  DEFAULT NULL   COMMENT '详细数据',
-    `created_at`    DATETIME     NOT NULL                COMMENT '操作时间',
+    `uuid`           CHAR(36)     NOT NULL                COMMENT '主键 UUID',
+    `user_uuid`      CHAR(36)              DEFAULT NULL   COMMENT '操作用户',
+    `action`         VARCHAR(100) NOT NULL                COMMENT '操作类型',
+    `resource_type`  VARCHAR(50)  NOT NULL                COMMENT '资源类型',
+    `resource_uuid`  CHAR(36)              DEFAULT NULL   COMMENT '资源 UUID',
+    `ip_address`     VARCHAR(45)           DEFAULT NULL   COMMENT 'IP 地址',
+    `user_agent`     VARCHAR(500)          DEFAULT NULL   COMMENT 'User Agent',
+    `request_method` VARCHAR(10)           DEFAULT NULL   COMMENT 'HTTP 请求方法',
+    `request_path`   VARCHAR(500)          DEFAULT NULL   COMMENT '请求路径（不含 query string）',
+    `detail`         JSON                  DEFAULT NULL   COMMENT '详细数据',
+    `created_at`     DATETIME     NOT NULL                COMMENT '操作时间',
     PRIMARY KEY (`uuid`),
     KEY `idx_user_action` (`user_uuid`, `action`),
     KEY `idx_resource`    (`resource_type`, `resource_uuid`),
-    KEY `idx_created_at`  (`created_at`)
+    KEY `idx_created_at`  (`created_at`),
+    KEY `idx_request_path` (`request_path`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='审计日志 (仅追加)';
 
 DROP TABLE IF EXISTS `sishiyouxu_login_log`;
 CREATE TABLE `sishiyouxu_login_log` (
-    `uuid`         CHAR(36)     NOT NULL                COMMENT '主键 UUID',
-    `user_uuid`    CHAR(36)              DEFAULT NULL   COMMENT '登录用户',
-    `provider`     VARCHAR(32)  NOT NULL
-                   COMMENT '登录方式: password / phone_sms / email_code / wechat',
-    `ip_address`   VARCHAR(45)           DEFAULT NULL   COMMENT 'IP',
-    `user_agent`   VARCHAR(500)          DEFAULT NULL   COMMENT 'User Agent',
-    `login_status` VARCHAR(16)  NOT NULL                COMMENT 'success / failed',
-    `fail_reason`  VARCHAR(100)          DEFAULT NULL   COMMENT '失败原因',
-    `created_at`   DATETIME     NOT NULL                COMMENT '登录时间',
+    `uuid`           CHAR(36)     NOT NULL                COMMENT '主键 UUID',
+    `user_uuid`      CHAR(36)              DEFAULT NULL   COMMENT '登录用户',
+    `provider`       VARCHAR(32)  NOT NULL
+                     COMMENT '登录方式: password / phone_sms / email_code / wechat',
+    `ip_address`     VARCHAR(45)           DEFAULT NULL   COMMENT 'IP',
+    `user_agent`     VARCHAR(500)          DEFAULT NULL   COMMENT 'User Agent',
+    `request_method` VARCHAR(10)           DEFAULT NULL   COMMENT 'HTTP 请求方法',
+    `request_path`   VARCHAR(500)          DEFAULT NULL   COMMENT '请求路径（不含 query string）',
+    `request_body`   TEXT                  DEFAULT NULL   COMMENT '请求体（敏感字段已脱敏，4KB 截断）',
+    `login_status`   VARCHAR(16)  NOT NULL                COMMENT 'success / failed',
+    `fail_reason`    VARCHAR(100)          DEFAULT NULL   COMMENT '失败原因',
+    `created_at`     DATETIME     NOT NULL                COMMENT '登录时间',
     PRIMARY KEY (`uuid`),
-    KEY `idx_user_login`  (`user_uuid`, `login_status`),
-    KEY `idx_created_at`  (`created_at`)
+    KEY `idx_user_login`    (`user_uuid`, `login_status`),
+    KEY `idx_created_at`    (`created_at`),
+    KEY `idx_login_request_path` (`request_path`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='登录日志 (仅追加)';
 
 -- ---------------------------------------------------------------------------
@@ -395,3 +416,49 @@ INSERT IGNORE INTO `sishiyouxu_system_config` (`key`, `value`, `description`, `c
     ('rate.login.max_attempts',    '10',                        '窗口内最大登录尝试', NOW(), NOW()),
     ('maintenance.enabled',        'false',                     '是否处于维护模式',   NOW(), NOW()),
     ('maintenance.message',        '系统升级中，请稍后再试',     '维护公告',           NOW(), NOW());
+
+-- ---------------------------------------------------------------------------
+-- 4. Phase 4.5 安全加固 — 增量迁移（幂等）
+-- 即使 init_db.sql 上面 DROP+CREATE 了 sishiyouxu_user，
+-- 这里仍然添加字段（CREATE 已包含新字段，这里是给现有库的兜底）。
+-- ---------------------------------------------------------------------------
+
+-- 失败计数（默认 0）
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'sishiyouxu_user'
+      AND COLUMN_NAME = 'failed_login_attempts');
+SET @sql = IF(@col_exists = 0,
+    'ALTER TABLE sishiyouxu_user ADD COLUMN failed_login_attempts INT NOT NULL DEFAULT 0 COMMENT ''连续登录失败次数''',
+    'DO 0');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- 锁定截止时间（默认 NULL）
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'sishiyouxu_user'
+      AND COLUMN_NAME = 'locked_until');
+SET @sql = IF(@col_exists = 0,
+    'ALTER TABLE sishiyouxu_user ADD COLUMN locked_until DATETIME NULL COMMENT ''锁定截止时间（NULL=未锁定）''',
+    'DO 0');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- 锁定检查索引
+SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'sishiyouxu_user'
+      AND INDEX_NAME = 'idx_user_locked_until');
+SET @sql = IF(@idx_exists = 0,
+    'CREATE INDEX idx_user_locked_until ON sishiyouxu_user (locked_until)',
+    'DO 0');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- 恢复 notes 输出 + 最终汇总消息
+SET sql_notes = 1;
+SELECT '数据库初始化成功' AS status;

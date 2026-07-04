@@ -46,11 +46,11 @@ export const useUiStore = defineStore('ui', () => {
 
   // ── 桌面侧边栏 —— 左侧任务列表 ──
   const leftSidebarWidth = ref(
-    Number(localStorage.getItem('sishi-sidebar-width') || 260),
+    Number(localStorage.getItem('sishi-sidebar-width') || 200),
   )
 
   function toggleLeftSidebar() {
-    leftSidebarWidth.value = leftSidebarWidth.value > 0 ? 0 : 260
+    leftSidebarWidth.value = leftSidebarWidth.value > 0 ? 0 : 200
   }
 
   watch(leftSidebarWidth, (w) => {
@@ -90,6 +90,17 @@ export const useUiStore = defineStore('ui', () => {
   // ── 移动端搜索浮层 ──
   const showMobileSearch = ref(false)
 
+  // ── 移动端通知面板 ──
+  const showMobileNotifications = ref(false)
+  function toggleMobileNotifications() { showMobileNotifications.value = !showMobileNotifications.value }
+  function openMobileNotifications() { showMobileNotifications.value = true }
+  function closeMobileNotifications() { showMobileNotifications.value = false }
+
+  // ── 键盘快捷键面板 ──
+  const showKeyboardHelp = ref(false)
+  function openKeyboardHelp() { showKeyboardHelp.value = true }
+  function closeKeyboardHelp() { showKeyboardHelp.value = false }
+
   // ── 导入触发器 ──
   const importTrigger = ref(0)
   function triggerImport() { importTrigger.value++ }
@@ -113,6 +124,8 @@ export const useUiStore = defineStore('ui', () => {
     showMobileStatsPanel, openMobileStatsPanel, closeMobileStatsPanel, toggleMobileStatsPanel,
     showMobileOverflowMenu, toggleMobileOverflowMenu, closeMobileOverflowMenu,
     showMobileSearch,
+    showMobileNotifications, toggleMobileNotifications, openMobileNotifications, closeMobileNotifications,
+    showKeyboardHelp, openKeyboardHelp, closeKeyboardHelp,
     importTrigger, triggerImport,
     notificationsEnabled, setNotificationsEnabled,
   }

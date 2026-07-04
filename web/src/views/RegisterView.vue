@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import CaptchaInput from '@/components/common/CaptchaInput.vue'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -12,6 +13,10 @@ const password = ref('')
 const confirmPassword = ref('')
 const loading = ref(false)
 const errorMsg = ref('')
+
+// 图形验证码（注册必填）
+const captchaId = ref('')
+const captchaSolution = ref('')
 
 async function handleRegister() {
   errorMsg.value = ''
@@ -31,16 +36,25 @@ async function handleRegister() {
     errorMsg.value = '两次密码输入不一致'
     return
   }
+  if (!captchaId.value || !captchaSolution.value) {
+    errorMsg.value = '请输入图形验证码'
+    return
+  }
 
   loading.value = true
   try {
-    await auth.register(nickname.value, 'password', {
-      identifier: email.value,
-      password: password.value,
-    })
+    await auth.register(
+      nickname.value,
+      'password',
+      { identifier: email.value, password: password.value },
+      { captchaId: captchaId.value, captchaSolution: captchaSolution.value },
+    )
     router.push('/')
   } catch (e: any) {
     errorMsg.value = e.message || '注册失败，请重试'
+    // 清空已输入的 CAPTCHA 答案，让用户重新输入
+    captchaSolution.value = ''
+    captchaId.value = '' // 触发 CaptchaInput 重新加载
   } finally {
     loading.value = false
   }
@@ -78,6 +92,12 @@ async function handleRegister() {
           <label for="confirm">确认密码</label>
           <input id="confirm" v-model="confirmPassword" type="password" placeholder="再次输入密码" />
         </div>
+
+        <!-- 注册必填 CAPTCHA -->
+        <CaptchaInput
+          v-model:captcha-id="captchaId"
+          v-model:solution="captchaSolution"
+        />
 
         <p v-if="errorMsg" class="error">{{ errorMsg }}</p>
 

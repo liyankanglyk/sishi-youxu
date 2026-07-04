@@ -40,8 +40,12 @@ export const useAdminAuthStore = defineStore('adminAuth', () => {
     localStorage.removeItem(USER_KEY)
   }
 
-  async function login(username: string, password: string) {
-    const { data } = await adminApi.login(username, password)
+  async function login(
+    username: string,
+    password: string,
+    captcha?: { captchaId: string; captchaSolution: string },
+  ) {
+    const { data } = await adminApi.login(username, password, captcha)
     accessToken.value = data.access_token
     refreshToken.value = data.refresh_token
     admin.value = data.user || data.admin || null

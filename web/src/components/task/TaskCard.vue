@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useTaskStore, getDueStatus, DUE_STATUS_CONFIG } from '@/stores/task'
 import type { TaskOut } from '@/api/tasks'
 
@@ -11,12 +11,31 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   click: [task: TaskOut]
-  complete: [task: TaskOut]
+  complete: [task: TaskOut, event: MouseEvent]
   delete: [task: TaskOut]
   contextmenu: [task: TaskOut]
 }>()
 
 const store = useTaskStore()
+
+// ── 完成动画状态 ──
+const isCompleting = ref(false)
+const animPeak = ref(1.05)
+const animDuration = ref(600)
+
+function handleComplete(e: MouseEvent) {
+  if (isCompleting.value || props.task.completed) return
+  isCompleting.value = true
+  // 随机化动画参数，每次完成略有不同
+  animPeak.value = 1.03 + Math.random() * 0.04   // 1.03 ~ 1.07
+  animDuration.value = 550 + Math.random() * 150  // 550ms ~ 700ms
+  emit('complete', props.task, e)
+  setTimeout(() => {
+    isCompleting.value = false
+  }, animDuration.value + 50)
+}
+
+const isMilestone = computed(() => store.completionIntensity >= 4)
 const isCompact = computed(() => props.density === 'compact')
 const isDetailed = computed(() => props.density === 'detailed')
 
@@ -52,7 +71,9 @@ const checklistProgress = computed(() => {
     :class="[
       `density-${density ?? 'standard'}`,
       {
-        completed: task.completed,
+        completed: task.completed && !isCompleting,
+        'just-completed': isCompleting,
+        'is-milestone': isCompleting && isMilestone,
         'due-overdue': dueStatus === 'overdue',
         'due-today': dueStatus === 'today',
         'is-dimmed': dimmed,
@@ -60,6 +81,8 @@ const checklistProgress = computed(() => {
     ]"
     :style="{
       borderLeftColor: dueConfig.color || 'transparent',
+      '--pulse-peak': isCompleting ? animPeak : 1.05,
+      '--pulse-duration': `${isCompleting ? animDuration : 600}ms`,
     }"
     @click="emit('click', task)"
     @contextmenu.prevent="emit('contextmenu', task)"
@@ -72,7 +95,7 @@ const checklistProgress = computed(() => {
       <button
         class="complete-btn"
         :title="task.completed ? '取消完成' : '标记完成'"
-        @click.stop="emit('complete', task)"
+        @click.stop="handleComplete"
       >
         <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M3 8l3 3 7-7" />
@@ -191,6 +214,85 @@ const checklistProgress = computed(() => {
 }
 
 /* ── 状态 ── */
+
+/* 完成瞬间动画 —— 光晕脉冲 → 缩略 → 静置 */
+.task-card.just-completed {
+  animation: cardBurst var(--pulse-duration, 600ms) cubic-bezier(0.22, 0.98, 0.36, 1) forwards;
+  pointer-events: none;
+}
+
+@keyframes cardBurst {
+  0% {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    filter: brightness(1);
+    transform: scale(1);
+    opacity: 1;
+  }
+  18% {
+    box-shadow: 0 0 0 6px rgba(5, 150, 105, 0.28), 0 8px 24px rgba(5, 150, 105, 0.16);
+    filter: brightness(1.1);
+    transform: scale(var(--pulse-peak, 1.12));
+    opacity: 1;
+  }
+  40% {
+    box-shadow: 0 0 0 10px rgba(5, 150, 105, 0.08), 0 12px 32px rgba(5, 150, 105, 0.06);
+    filter: brightness(1.15);
+    transform: scale(1.08);
+    opacity: 0.8;
+  }
+  70% {
+    box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.04), 0 2px 6px rgba(0, 0, 0, 0.04);
+    filter: brightness(0.95);
+    transform: scale(0.3);
+    opacity: 0.15;
+  }
+  85% {
+    transform: scale(0.92);
+    opacity: 0.55;
+  }
+  100% {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    filter: brightness(0.94);
+    transform: scale(0.97);
+    opacity: 0.6;
+  }
+}
+
+/* 里程碑金色扫光 */
+.task-card.is-milestone {
+  overflow: hidden;
+}
+.task-card.is-milestone::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    45deg,
+    transparent 40%,
+    rgba(247, 203, 77, 0.25) 45%,
+    rgba(247, 203, 77, 0.4) 50%,
+    rgba(247, 203, 77, 0.25) 55%,
+    transparent 60%
+  );
+  animation: goldSweep 0.7s ease-out forwards;
+  z-index: 10;
+  pointer-events: none;
+}
+
+@keyframes goldSweep {
+  from { transform: translateX(-100%) translateY(-100%); }
+  to   { transform: translateX(100%) translateY(100%); }
+}
+
+.task-card.just-completed .card-title {
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  text-decoration-color: var(--c-success);
+}
+
 .task-card.completed {
   opacity: 0.6;
 }
@@ -449,13 +551,13 @@ const checklistProgress = computed(() => {
 /* ── 移动端：窄而高，纵向堆叠 ── */
 @media (max-width: 767px) {
   .task-card {
-    padding: 6px 7px;
-    min-height: 50px;
-    border-radius: 8px;
+    padding: 7px 8px;
+    min-height: 54px;
+    border-radius: 9px;
     border-left-width: 2px;
-    gap: 3px;
-    min-width: 60px;
-    max-width: 100px;
+    gap: 4px;
+    min-width: 64px;
+    max-width: 110px;
   }
 
   /* 标题：允许最多两行换行 */
@@ -464,9 +566,9 @@ const checklistProgress = computed(() => {
   }
 
   .card-title {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 600;
-    line-height: 1.25;
+    line-height: 1.3;
     white-space: normal;
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -476,8 +578,8 @@ const checklistProgress = computed(() => {
   }
 
   .recurrence-icon {
-    width: 9px;
-    height: 9px;
+    width: 10px;
+    height: 10px;
     margin-top: 1px;
   }
 
@@ -485,37 +587,37 @@ const checklistProgress = computed(() => {
   .card-footer {
     flex-direction: column;
     align-items: flex-start;
-    gap: 1px;
+    gap: 2px;
     margin-top: auto;
   }
 
   .card-due {
-    flex-direction: column;
-    align-items: flex-start;
-    font-size: 8px;
-    gap: 0;
+    flex-direction: row;
+    align-items: center;
+    font-size: 10px;
+    gap: 3px;
   }
 
   .due-text {
-    font-size: 8px;
-    gap: 2px;
+    font-size: 10px;
+    gap: 3px;
   }
 
   .due-status-chip {
-    font-size: 7px;
-    padding: 0px 2px;
-    border-radius: 2px;
+    font-size: 8px;
+    padding: 1px 4px;
+    border-radius: 3px;
   }
 
   .checklist-text {
-    font-size: 8px;
+    font-size: 9px;
   }
 
-  /* 标签：极小 chip，最多展示 2 个 */
+  /* 标签：小 chip，最多展示 2 个 */
   .card-tags {
     display: flex !important;
     flex-wrap: wrap;
-    gap: 1px;
+    gap: 2px;
     margin-bottom: 2px;
   }
 
@@ -524,17 +626,14 @@ const checklistProgress = computed(() => {
 
   .tag-chip {
     display: inline-flex !important;
-    font-size: 7px;
-    max-width: 44px;
+    font-size: 8px;
+    max-width: 48px;
     gap: 2px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 
   .tag-chip-dot {
-    width: 4px;
-    height: 4px;
+    width: 5px;
+    height: 5px;
   }
 
   /* 按钮始终可见 */
@@ -564,24 +663,24 @@ const checklistProgress = computed(() => {
 
   /* 标准：窄，适中高度 */
   .density-standard {
-    max-width: 100px;
-    min-width: 68px;
-    min-height: 56px;
-    padding: 5px 7px;
+    max-width: 110px;
+    min-width: 72px;
+    min-height: 58px;
+    padding: 6px 8px;
   }
 
   /* 紧凑：极窄、极简 */
   .density-compact {
-    max-width: 70px;
-    min-width: 48px;
-    min-height: 38px;
-    padding: 3px 5px;
-    border-radius: 6px;
-    gap: 1px;
+    max-width: 76px;
+    min-width: 52px;
+    min-height: 40px;
+    padding: 4px 6px;
+    border-radius: 7px;
+    gap: 2px;
   }
 
   .density-compact .card-title {
-    font-size: 9px;
+    font-size: 10px;
     -webkit-line-clamp: 1;
     white-space: nowrap;
   }
@@ -596,25 +695,25 @@ const checklistProgress = computed(() => {
 
   /* 详细：最宽、最高 */
   .density-detailed {
-    max-width: 130px;
-    min-width: 90px;
-    min-height: 72px;
-    padding: 6px 8px;
-    gap: 3px;
+    max-width: 140px;
+    min-width: 96px;
+    min-height: 76px;
+    padding: 8px 10px;
+    gap: 4px;
   }
 
   .density-detailed .card-title {
-    font-size: 11px;
+    font-size: 12px;
   }
 
   .density-detailed .card-note {
-    font-size: 8px;
+    font-size: 9px;
     -webkit-line-clamp: 2;
   }
 
   .density-detailed .tag-chip {
-    font-size: 8px;
-    max-width: 52px;
+    font-size: 9px;
+    max-width: 56px;
   }
 }
 </style>

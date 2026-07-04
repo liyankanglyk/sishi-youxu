@@ -267,5 +267,5 @@ onMounted(fetch)
   align-items: center;
   margin-bottom: 1rem;
 }
-.text-muted { color: #94a3b8; }
+.text-muted { color: #64748b; }
 </style>

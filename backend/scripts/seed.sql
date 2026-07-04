@@ -10,9 +10,17 @@
 --   - 演示账号：demo / demo123（大三学生场景，含 14 条任务、标签、检查项、通知）
 --   - 审计日志、登录日志、系统公告、用户反馈（演示数据）
 --   - 所有数据均使用 INSERT IGNORE 避免覆盖已有数据
+--
+-- Phase 4.5 安全加固说明：
+--   - sishiyouxu_user 表新增 failed_login_attempts / locked_until 字段（有默认值）
+--   - INSERT IGNORE 会跳过这些字段，DB 自动填默认值（0 / NULL），无需修改本脚本
 -- =============================================================================
 
 USE `sishi_youxu`;
+
+-- 静默执行 INSERT IGNORE（已存在行的 warning 不输出）
+SET sql_notes = 0;
+SET sql_warnings = 0;
 
 -- ---------------------------------------------------------------------------
 -- 1. 超管账号 (admin / 123456)
@@ -353,7 +361,7 @@ VALUES
 -- ---------------------------------------------------------------------------
 INSERT IGNORE INTO `sishiyouxu_audit_log`
     (`uuid`, `user_uuid`, `action`, `resource_type`, `resource_uuid`,
-     `ip_address`, `user_agent`, `detail`, `created_at`)
+     `ip_address`, `user_agent`, `request_method`, `request_path`, `detail`, `created_at`)
 VALUES
     -- 超管操作
     ('c0000000-0000-0000-0000-300000000001',
@@ -361,6 +369,7 @@ VALUES
      'user', 'b0000000-0000-0000-0000-000000000001',
      '192.168.1.100',
      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36',
+     'POST', '/api/v1/admin/users/b0000000-0000-0000-0000-000000000001/disable',
      JSON_OBJECT('reason', '测试禁用操作', 'operator', 'admin'),
      DATE_SUB(NOW(), INTERVAL 6 HOUR)),
     ('c0000000-0000-0000-0000-300000000002',
@@ -368,6 +377,7 @@ VALUES
      'user', 'b0000000-0000-0000-0000-000000000001',
      '192.168.1.100',
      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36',
+     'POST', '/api/v1/admin/users/b0000000-0000-0000-0000-000000000001/enable',
      JSON_OBJECT('reason', '恢复用户使用', 'operator', 'admin'),
      DATE_SUB(NOW(), INTERVAL 5 HOUR)),
     ('c0000000-0000-0000-0000-300000000003',
@@ -375,6 +385,7 @@ VALUES
      'system_config', NULL,
      '192.168.1.100',
      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36',
+     'PATCH', '/api/v1/admin/config',
      JSON_OBJECT('changes', JSON_OBJECT('site.name', '四时有序', 'registration.enabled', 'true')),
      DATE_SUB(NOW(), INTERVAL 1 DAY)),
     ('c0000000-0000-0000-0000-300000000004',
@@ -382,6 +393,7 @@ VALUES
      'announcement', 'c0000000-0000-0000-0000-500000000001',
      '192.168.1.100',
      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36',
+     'POST', '/api/v1/admin/announcements',
      JSON_OBJECT('title', '系统升级通知', 'type', 'info'),
      DATE_SUB(NOW(), INTERVAL 2 DAY)),
     ('c0000000-0000-0000-0000-300000000005',
@@ -389,6 +401,7 @@ VALUES
      'sensitive_word', 'c0000000-0000-0000-0000-600000000001',
      '192.168.1.100',
      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36',
+     'POST', '/api/v1/admin/sensitive-words',
      JSON_OBJECT('word', '违规广告词', 'level', 2),
      DATE_SUB(NOW(), INTERVAL 3 DAY)),
     -- 演示管理员操作
@@ -397,6 +410,7 @@ VALUES
      'task', 'b0000000-0000-0000-0000-200000000001',
      '10.0.0.55',
      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36',
+     'GET', '/api/v1/admin/tasks/b0000000-0000-0000-0000-200000000001',
      JSON_OBJECT('action', 'review', 'result', 'approved'),
      DATE_SUB(NOW(), INTERVAL 4 HOUR)),
     ('c0000000-0000-0000-0000-300000000007',
@@ -404,6 +418,7 @@ VALUES
      'task', 'b0000000-0000-0000-0000-200000000014',
      '10.0.0.55',
      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36',
+     'DELETE', '/api/v1/admin/tasks/b0000000-0000-0000-0000-200000000014',
      JSON_OBJECT('action', 'soft_delete', 'reason', '内容不当'),
      DATE_SUB(NOW(), INTERVAL 3 HOUR)),
     ('c0000000-0000-0000-0000-300000000008',
@@ -411,6 +426,7 @@ VALUES
      'user', 'b0000000-0000-0000-0000-000000000001',
      '10.0.0.55',
      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36',
+     'GET', '/api/v1/admin/users/b0000000-0000-0000-0000-000000000001',
      JSON_OBJECT('action', 'view_detail', 'tab', 'tasks'),
      DATE_SUB(NOW(), INTERVAL 2 HOUR)),
     ('c0000000-0000-0000-0000-300000000009',
@@ -418,6 +434,7 @@ VALUES
      'feedback', NULL,
      '10.0.0.55',
      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36',
+     'PATCH', '/api/v1/admin/feedback',
      JSON_OBJECT('old_status', 'pending', 'new_status', 'processing'),
      DATE_SUB(NOW(), INTERVAL 1 DAY)),
     ('c0000000-0000-0000-0000-300000000010',
@@ -425,6 +442,7 @@ VALUES
      'tag', 'b0000000-0000-0000-0000-100000000001',
      '10.0.0.55',
      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36',
+     'PATCH', '/api/v1/admin/tags/b0000000-0000-0000-0000-100000000001',
      JSON_OBJECT('changes', JSON_OBJECT('color', '#7C3AED')),
      DATE_SUB(NOW(), INTERVAL 2 DAY));
 
@@ -433,25 +451,28 @@ VALUES
 -- ---------------------------------------------------------------------------
 INSERT IGNORE INTO `sishiyouxu_login_log`
     (`uuid`, `user_uuid`, `provider`, `ip_address`, `user_agent`,
-     `login_status`, `fail_reason`, `created_at`)
+     `request_method`, `request_path`, `login_status`, `fail_reason`, `created_at`)
 VALUES
     -- 超管登录
     ('c0000000-0000-0000-0000-400000000001',
      'a0000000-0000-0000-0000-000000000001', 'password',
      '192.168.1.100',
      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/125.0.0.0',
+     'POST', '/api/v1/admin/auth/tokens',
      'success', NULL,
      DATE_SUB(NOW(), INTERVAL 1 HOUR)),
     ('c0000000-0000-0000-0000-400000000002',
      'a0000000-0000-0000-0000-000000000001', 'password',
      '192.168.1.100',
      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/125.0.0.0',
+     'POST', '/api/v1/admin/auth/tokens',
      'success', NULL,
      DATE_SUB(NOW(), INTERVAL 1 DAY)),
     ('c0000000-0000-0000-0000-400000000003',
      'a0000000-0000-0000-0000-000000000001', 'password',
      '192.168.1.100',
      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/125.0.0.0',
+     'POST', '/api/v1/admin/auth/tokens',
      'success', NULL,
      DATE_SUB(NOW(), INTERVAL 2 DAY)),
     -- 演示管理员登录
@@ -459,18 +480,21 @@ VALUES
      'c0000000-0000-0000-0000-000000000001', 'password',
      '10.0.0.55',
      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/125.0.0.0',
+     'POST', '/api/v1/admin/auth/tokens',
      'success', NULL,
      DATE_SUB(NOW(), INTERVAL 2 HOUR)),
     ('c0000000-0000-0000-0000-400000000005',
      'c0000000-0000-0000-0000-000000000001', 'password',
      '10.0.0.55',
      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/125.0.0.0',
+     'POST', '/api/v1/admin/auth/tokens',
      'success', NULL,
      DATE_SUB(NOW(), INTERVAL 1 DAY)),
     ('c0000000-0000-0000-0000-400000000006',
      'c0000000-0000-0000-0000-000000000001', 'password',
      '10.0.0.56',
      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/125.0.0.0',
+     'POST', '/api/v1/admin/auth/tokens',
      'failed', '密码错误',
      DATE_SUB(NOW(), INTERVAL 2 DAY)),
     -- 演示用户登录
@@ -478,24 +502,28 @@ VALUES
      'b0000000-0000-0000-0000-000000000001', 'password',
      '172.16.0.10',
      'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Mobile/15E148',
+     'POST', '/api/v1/auth/tokens',
      'success', NULL,
      DATE_SUB(NOW(), INTERVAL 1 HOUR)),
     ('c0000000-0000-0000-0000-400000000008',
      'b0000000-0000-0000-0000-000000000001', 'password',
      '172.16.0.10',
      'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Mobile/15E148',
+     'POST', '/api/v1/auth/tokens',
      'success', NULL,
      DATE_SUB(NOW(), INTERVAL 12 HOUR)),
     ('c0000000-0000-0000-0000-400000000009',
      'b0000000-0000-0000-0000-000000000001', 'password',
      '172.16.0.10',
      'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Mobile/15E148',
+     'POST', '/api/v1/auth/tokens',
      'success', NULL,
      DATE_SUB(NOW(), INTERVAL 1 DAY)),
     ('c0000000-0000-0000-0000-40000000000a',
      'b0000000-0000-0000-0000-000000000001', 'password',
      '172.16.0.22',
      'Mozilla/5.0 (Linux; Android 14; Pixel 8) Chrome/125.0.0.0 Mobile',
+     'POST', '/api/v1/auth/tokens',
      'success', NULL,
      DATE_SUB(NOW(), INTERVAL 2 DAY));
 
@@ -558,3 +586,8 @@ VALUES
      'a0000000-0000-0000-0000-000000000001',
      DATE_SUB(NOW(), INTERVAL 2 DAY),
      DATE_SUB(NOW(), INTERVAL 5 DAY), DATE_SUB(NOW(), INTERVAL 2 DAY));
+
+-- 恢复输出 + 最终汇总
+SET sql_notes = 1;
+SET sql_warnings = 1;
+SELECT '数据库初始化成功' AS status;

@@ -1,4 +1,4 @@
-"""任务 CRUD 端点 —— Phase 2 实现。
+﻿"""任务 CRUD 端点 —— Phase 2 实现。
 
 已实现的功能：
 - GET /tasks — 任务列表（分页、可筛选）
@@ -9,6 +9,8 @@
 - POST /tasks/{uuid}/restore — 恢复任务
 - POST /tasks/batch — 批量操作
 - 检查项 CRUD 子资源
+
+⚠️ /batch 必须排在 /{uuid} 之前（修复路由顺序 bug：/{uuid} 会吞掉 /batch）。
 """
 
 from __future__ import annotations
@@ -37,7 +39,7 @@ def _service(db: DbSession) -> TaskService:
 
 
 # =============================================================================
-# 任务 CRUD
+# 任务 CRUD（固定路径在 /{uuid} 之前）
 # =============================================================================
 
 
@@ -71,6 +73,25 @@ async def create_task(body: TaskCreateRequest, current: RequiredUser, db: DbSess
     return ok(result)
 
 
+@router.post("/batch", summary="批量操作任务", description="批量删除/恢复/移动/完成任务，支持幂等")
+async def batch_tasks(body: BatchActionRequest, current: RequiredUser, db: DbSession) -> dict:
+    svc = _service(db)
+    result = await svc.batch_tasks(
+        user_uuid=current["uuid"],
+        action=body.action,
+        task_uuids=body.taskUuids,
+        idempotency_key=body.idempotencyKey,
+        quadrant=body.quadrant,
+    )
+    await db.commit()
+    return ok(result)
+
+
+# =============================================================================
+# /{uuid} 形式（在固定路径之后）
+# =============================================================================
+
+
 @router.get("/{uuid}", summary="获取任务详情", description="根据 UUID 获取任务详细信息（含完整标签对象）")
 async def get_task(uuid: str, current: RequiredUser, db: DbSession) -> dict:
     svc = _service(db)
@@ -98,20 +119,6 @@ async def delete_task(uuid: str, current: RequiredUser, db: DbSession) -> dict:
 async def restore_task(uuid: str, current: RequiredUser, db: DbSession) -> dict:
     svc = _service(db)
     result = await svc.restore_task(uuid, current["uuid"])
-    await db.commit()
-    return ok(result)
-
-
-@router.post("/batch", summary="批量操作任务", description="批量删除/恢复/移动/完成任务，支持幂等")
-async def batch_tasks(body: BatchActionRequest, current: RequiredUser, db: DbSession) -> dict:
-    svc = _service(db)
-    result = await svc.batch_tasks(
-        user_uuid=current["uuid"],
-        action=body.action,
-        task_uuids=body.taskUuids,
-        idempotency_key=body.idempotencyKey,
-        quadrant=body.quadrant,
-    )
     await db.commit()
     return ok(result)
 

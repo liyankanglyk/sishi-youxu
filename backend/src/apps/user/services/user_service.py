@@ -16,9 +16,15 @@ import uuid as _uuid
 from datetime import datetime, timedelta
 from typing import Any, Literal
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.cache import (
+    USER_PROFILE_TTL,
+    cache_get,
+    cache_set,
+    invalidate_user_profile,
+)
 from src.core.config import settings
 from src.core.exceptions import (
     BusinessException,
@@ -49,11 +55,17 @@ class UserService:
     # =========================================================================
 
     async def get_me(self, user_uuid: str) -> dict[str, Any]:
-        """返回当前用户的资料。"""
+        """返回当前用户的资料（Redis 缓存 5 分钟）。"""
+        cached = await cache_get("user", user_uuid)
+        if cached is not None:
+            return cached
+
         user = await self._get_user(user_uuid)
         if user is None:
             raise NotFoundException("用户不存在", code="USER_NOT_FOUND")
-        return self._user_to_profile(user)
+        profile = self._user_to_profile(user)
+        await cache_set("user", user_uuid, value=profile, ttl=USER_PROFILE_TTL)
+        return profile
 
     async def update_me(self, user_uuid: str, data: dict[str, Any]) -> dict[str, Any]:
         """更新当前用户的资料字段（昵称、语言偏好）。"""
@@ -86,6 +98,7 @@ class UserService:
         if changed:
             await self.db.flush()
             await self.db.refresh(user)
+            await invalidate_user_profile(user_uuid)
 
         return self._user_to_profile(user)
 
@@ -130,6 +143,7 @@ class UserService:
 
         # 撤销所有 refresh token → 强制所有设备重新登录
         revoked = await self._revoke_all_refresh_tokens(user_uuid)
+        await invalidate_user_profile(user_uuid)
         logger.info("password changed for user=%s, revoked %d refresh tokens", user_uuid, revoked)
 
         return {"message": "密码修改成功"}
@@ -185,6 +199,7 @@ class UserService:
         user.avatar_url = avatar_url
         await self.db.flush()
         await self.db.refresh(user)
+        await invalidate_user_profile(user_uuid)
 
         return {
             "avatarUrl": avatar_url,
@@ -318,19 +333,10 @@ class UserService:
 
         auth_provider = AuthProvider(provider)
 
-        # 统计该用户拥有的登录身份数量，避免移除最后一个
-        count_stmt = select(AuthIdentity).where(
-            AuthIdentity.user_uuid == user_uuid,
-            AuthIdentity.deleted_at.is_(None),
-        )
-        all_identities = (await self.db.execute(count_stmt)).scalars().all()
-        if len(all_identities) <= 1:
-            raise ConflictException(
-                "至少需要保留一种登录方式",
-                code="VALIDATION_ERROR",
-                detail={"provider": "不能解绑唯一的登录方式"},
-            )
-
+        # 原子解绑：先校验目标 identity 存在并归属本用户，且解绑后仍剩至少 1 个其他活身份。
+        # 修复 Bug：原实现先 count 再 find 两次 execute 之间无锁，并发解绑会越过「至少保留一种」
+        # 的检查，导致用户唯一登录方式被删除。改为单条 UPDATE + WHERE 子查询，确保原子。
+        # 1) 找到目标 identity（确认归属 + 存在）
         identity = await self._find_identity(provider=auth_provider, user_uuid=user_uuid)
         if identity is None:
             raise NotFoundException(
@@ -338,7 +344,43 @@ class UserService:
                 code="AUTH_PROVIDER_NOT_LINKED",
             )
 
-        identity.deleted_at = datetime.utcnow()
+        # 2) 原子更新：仅当 (a) 该 identity 未被删除 且 (b) 同用户仍有 >= 2 个未删除身份时 才解绑
+        # 子查询：同用户未删除身份总数
+        count_subq = (
+            select(func.count(AuthIdentity.uuid))
+            .where(
+                AuthIdentity.user_uuid == user_uuid,
+                AuthIdentity.deleted_at.is_(None),
+            )
+            .scalar_subquery()
+        )
+        stmt = (
+            update(AuthIdentity)
+            .where(
+                AuthIdentity.uuid == identity.uuid,
+                AuthIdentity.deleted_at.is_(None),
+                count_subq >= 2,
+            )
+            .values(deleted_at=datetime.utcnow())
+        )
+        result = await self.db.execute(stmt)
+        if result.rowcount == 0:
+            # rowcount=0 可能因为：并发已解绑 / 不存在 / 唯一身份
+            # 重新查询确认原因
+            remaining = await self.db.execute(
+                select(func.count(AuthIdentity.uuid)).where(
+                    AuthIdentity.user_uuid == user_uuid,
+                    AuthIdentity.deleted_at.is_(None),
+                )
+            )
+            if remaining.scalar() <= 1:
+                raise ConflictException(
+                    "至少需要保留一种登录方式",
+                    code="VALIDATION_ERROR",
+                    detail={"provider": "不能解绑唯一的登录方式"},
+                )
+            # 否则是被并发先解绑了，幂等返回成功
+            return {"unbound": provider}
         await self.db.flush()
 
         return {"unbound": provider}

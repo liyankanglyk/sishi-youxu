@@ -64,6 +64,27 @@ apiClient.interceptors.response.use(
     return response
   },
   async (error: AxiosError) => {
+    // 从 HTTP 错误响应中提取后端返回的业务错误消息，
+    // 避免前端直接展示 "Request failed with status code 400" 这类原始 Axios 消息。
+    if (error.response?.data) {
+      const body = error.response.data as any
+      if (body?.error?.message) {
+        const bizError = new Error(body.error.message) as any
+        bizError.code = body.error.code || 'UNKNOWN'
+        bizError.status = error.response.status
+        bizError.detail = body.error.detail
+        // 任何 AUTH_* 错误 → 强制跳转到登录页
+        if (
+          body.error.code === 'AUTH_ADMIN_REQUIRED' ||
+          body.error.code === 'ADMIN_FORBIDDEN' ||
+          (typeof body.error.code === 'string' && body.error.code.startsWith('AUTH_'))
+        ) {
+          clearAuthAndRedirect()
+        }
+        return Promise.reject(bizError)
+      }
+    }
+
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
 
     // 跳过认证端点的刷新（登录 / 刷新接口本身）。

@@ -61,14 +61,17 @@ def skip_if_unavailable(client):
             resp = client.get("/health")
             if resp.status_code != 200:
                 return True
-            # 探测写接口 —— 用随机凭证注册。
+            # 探测写接口 —— 用随机凭证注册（含 CAPTCHA）。
             email = f"probe-{secrets.token_hex(4)}@example.com"
+            captcha_id, captcha_solution = _fetch_captcha(client)
             r = client.post(
                 "/api/v1/users",
                 json={
                     "nickname": "probe",
                     "provider": "password",
                     "payload": {"identifier": email, "password": "Probe1234"},
+                    "captchaId": captcha_id,
+                    "captchaSolution": captcha_solution,
                 },
             )
             return r.status_code == 500
@@ -130,12 +133,15 @@ def register_user(client, random_email, strong_password):
         ident = email or random_email
         nick = nickname or f"tester-{secrets.token_hex(3)}"
         pwd = password or strong_password
+        captcha_id, captcha_solution = _fetch_captcha(client)
         resp = client.post(
             "/api/v1/users",
             json={
                 "nickname": nick,
                 "provider": "password",
                 "payload": {"identifier": ident, "password": pwd},
+                "captchaId": captcha_id,
+                "captchaSolution": captcha_solution,
             },
         )
         assert resp.status_code == 200, f"register failed: {resp.status_code} {resp.text}"
@@ -165,6 +171,34 @@ def register_user(client, random_email, strong_password):
         purge_test_users(created_uuids)
 
 
+def _fetch_captcha(client) -> tuple[str, str]:
+    """从验证码图片中识别答案（测试专用，跳过 OCR 直接拿 mock 数据）。
+
+    因 captcha 是 SVG base64 图片，测试环境我们用一个特殊后门：
+    调用 `/auth/captcha` 拿 captcha_id，然后通过 `/auth/captcha/verify`
+    不再可行（验证码是一次性的）。
+    解决方案：直接构造一对已知的 captcha_id + solution。
+    由于这是测试环境，Mock 验证码生成器使用固定种子以支持测试断言。
+    """
+    # 真实情况下：测试需要 OCR 识别 SVG。这里通过 dev 环境验证码
+    # 返回 solution 的后门字段来获取（详见 captcha 服务响应）。
+    resp = client.get("/api/v1/auth/captcha")
+    if resp.status_code != 200:
+        return ("", "")
+    body = resp.json()["data"]
+    return body["captcha_id"], body.get("solution", "")
+
+
+def fetch_captcha_for_register(client) -> tuple[str, str]:
+    """公开 API：供各测试模块获取注册用 CAPTCHA。"""
+    return _fetch_captcha(client)
+
+
+def fetch_captcha_for_admin_login(client) -> tuple[str, str]:
+    """公开 API：供各测试模块获取管理员登录用 CAPTCHA。"""
+    return _fetch_admin_captcha(client)
+
+
 @pytest.fixture()
 def auth_headers(register_user):
     """便捷方法：为已注册用户生成 `Authorization: Bearer <access_token>` 头。"""
@@ -189,15 +223,31 @@ def admin_login(client):
     import pytest
 
     def _login() -> dict | None:
+        # 获取管理端验证码（dev/test 环境返回 solution）
+        captcha_id, captcha_solution = _fetch_admin_captcha(client)
         resp = client.post(
             "/api/v1/admin/auth/tokens",
-            json={"username": "admin", "password": "123456"},
+            json={
+                "username": "admin",
+                "password": "123456",
+                "captchaId": captcha_id,
+                "captchaSolution": captcha_solution,
+            },
         )
         if resp.status_code != 200:
             pytest.skip(f"admin/123456 未就绪：{resp.status_code} {resp.text[:120]}")
         return resp.json()["data"]
 
     return _login
+
+
+def _fetch_admin_captcha(client) -> tuple[str, str]:
+    """获取管理端图形验证码（dev/test 环境）。"""
+    resp = client.get("/api/v1/admin/auth/captcha")
+    if resp.status_code != 200:
+        return ("", "")
+    body = resp.json()["data"]
+    return body["captcha_id"], body.get("solution", "")
 
 
 __all__ = [

@@ -2,7 +2,7 @@
 import { ref, watch, computed } from 'vue'
 import { marked } from 'marked'
 import AppModal from '@/components/common/AppModal.vue'
-import { taskApi, type TaskOut } from '@/api/tasks'
+import { taskApi, type TaskOut, type ChecklistItem } from '@/api/tasks'
 import { tagApi } from '@/api/tags'
 import type { TagOut } from '@/api/tags'
 import { useTaskStore } from '@/stores/task'
@@ -36,7 +36,7 @@ const saving = ref(false)
 const isEdit = computed(() => !!props.taskUuid)
 
 // ── Markdown 预览 ──
-const notePreview = ref(false)
+const notePreview = ref(true)
 const renderedNote = computed(() => {
   if (!note.value.trim()) return ''
   try { return marked.parse(note.value) as string } catch { return note.value }
@@ -84,25 +84,91 @@ function quadrantLabel(u: number, i: number): string {
 
 const currentQuadrantLabel = computed(() => quadrantLabel(urgencyLevel.value, importanceLevel.value))
 
+// 归一化重复规则：兼容简单关键字和 RRULE 格式
+function normalizeRecurrence(raw: string | null | undefined): string {
+  if (!raw) return ''
+  const lower = raw.toLowerCase()
+  if (lower.includes('daily') || raw === 'daily') return 'daily'
+  if (lower.includes('weekday')) return 'weekdays'
+  if (lower.includes('biweekly')) return 'biweekly'
+  if (lower.includes('weekly')) return 'weekly'
+  if (lower.includes('monthly')) return 'monthly'
+  return raw
+}
+
 // ── 加载任务数据 ──
 watch(() => [props.visible, props.taskUuid], async ([vis, uuid]) => {
   if (!vis) return
   resetForm()
-  try {
-    loading.value = true
-    const [tagData] = await Promise.all([
-      tagApi.list(),
-    ])
-    tagOptions.value = tagData.data?.items ?? []
 
-    if (uuid) {
-      const { data } = await taskApi.get(uuid as string)
-      populateFromTask(data)
+  // 1. 标签：优先用 store 缓存（页面加载时已获取），无缓存再请求
+  if (taskStore.tags.length > 0) {
+    tagOptions.value = taskStore.tags
+  }
+
+  if (!uuid) {
+    // 新建任务：只需补拉标签（如果无缓存）
+    if (taskStore.tags.length === 0) {
+      loading.value = true
+      try {
+        const { data } = await tagApi.list()
+        tagOptions.value = data?.items ?? []
+      } catch { /* ignore */ }
+      loading.value = false
     }
-  } catch (e: any) {
-    toast.error(e.message || '加载失败')
-  } finally {
-    loading.value = false
+    return
+  }
+
+  // 2. 编辑任务：从 store 即时填充全部数据（含检查项），跳过网络请求
+  const local = taskStore.serverTasks.find((t: any) => t.uuid === uuid)
+  const hasFullData = local?.checklistItems !== undefined
+  if (local) {
+    title.value = local.title
+    urgencyLevel.value = local.urgencyLevel
+    importanceLevel.value = local.importanceLevel
+    dueDate.value = local.dueDate?.slice(0, 10) ?? ''
+    recurrence.value = normalizeRecurrence(local.recurrence)
+    note.value = local.note ?? ''
+    // 标签：兼容 string[]（列表响应）和完整对象（详情响应）
+    const tags = local.tags
+    if (tags?.length) {
+      if (typeof tags[0] === 'string') {
+        selectedTags.value = tags as string[]
+      } else {
+        selectedTags.value = (tags as Array<{ uuid: string }>).map(t => t.uuid)
+      }
+    }
+    // 检查项：store 中已有则即时渲染，无需网络等待
+    if (hasFullData) {
+      checklist.value = local.checklistItems.map((c: any) => ({ ...c, _new: false }))
+    }
+  }
+
+  // 3. 仅当 store 数据不完整时才发起网络请求（降级路径）
+  loading.value = !hasFullData
+  if (!hasFullData) {
+    try {
+      if (taskStore.tags.length === 0) {
+        tagApi.list().then(({ data }: any) => {
+          if (data?.items) tagOptions.value = data.items
+        }).catch(() => {})
+      }
+      // get_task 已含 checklistItems，无需额外 /checklist 请求
+      const { data } = await taskApi.get(uuid as string)
+      if (data) {
+        if (!local) populateFromTask(data, data.checklistItems)
+        // 优先用内置 checklistItems，仅降级时单独请求
+        if (data.checklistItems) {
+          checklist.value = data.checklistItems.map((c: any) => ({ ...c, _new: false }))
+        } else {
+          await loadChecklist(uuid as string)
+        }
+      }
+    } catch (e: any) {
+      if (!local) toast.error(e.message || '加载失败')
+    } finally {
+      loading.value = false
+    }
   }
 }, { immediate: false })
 
@@ -117,18 +183,20 @@ function resetForm() {
   checklist.value = []
 }
 
-function populateFromTask(task: TaskOut) {
+function populateFromTask(task: TaskOut, items?: ChecklistItem[]) {
   title.value = task.title
   urgencyLevel.value = task.urgencyLevel
   importanceLevel.value = task.importanceLevel
   dueDate.value = task.dueDate?.slice(0, 10) ?? ''
-  recurrence.value = task.recurrence ?? ''
+  recurrence.value = normalizeRecurrence(task.recurrence)
   note.value = task.note ?? ''
   const tags = task.tags
   if (tags && tags.length && typeof tags[0] !== 'string') {
     selectedTags.value = (tags as { uuid: string; name: string; color: string }[]).map(t => t.uuid)
   }
-  loadChecklist(task.uuid)
+  if (items) {
+    checklist.value = items.map(c => ({ ...c, _new: false }))
+  }
 }
 
 async function loadChecklist(taskUuid: string) {
@@ -188,24 +256,40 @@ async function handleSubmit() {
       savedTask = data
     }
 
-    // 同步检查项变更
+    // 检查项并行保存
     if (savedTask.uuid) {
-      for (const item of checklist.value) {
+      const ops = checklist.value.map(item => {
         if (item._new && item.title.trim()) {
-          await taskApi.createChecklistItem(savedTask.uuid, { title: item.title.trim() })
+          return taskApi.createChecklistItem(savedTask.uuid, { title: item.title.trim() }).catch(() => {})
         } else if (!item._new) {
-          // 同步已有项的完成状态
-          await taskApi.updateChecklistItem(savedTask.uuid, item.uuid, {
+          return taskApi.updateChecklistItem(savedTask.uuid, item.uuid, {
             title: item.title,
             completed: item.completed,
           }).catch(() => {})
         }
-      }
+        return Promise.resolve()
+      })
+      await Promise.all(ops)
     }
 
     toast.success(isEdit.value ? '已更新' : '已创建')
     emit('close')
-    taskStore.fetchFromServer()
+    // 乐观更新 store — 同步 checklistItems + 计数，保证卡片即时刷新
+    if (savedTask.uuid) {
+      const currentChecklist = checklist.value
+        .filter(c => c.title.trim())
+        .map(c => ({ uuid: c.uuid, title: c.title.trim(), completed: c.completed, sortOrder: 0 }))
+      ;(savedTask as any).checklistItems = currentChecklist
+      ;(savedTask as any).checklistTotal = currentChecklist.length
+      ;(savedTask as any).checklistCompleted = currentChecklist.filter(c => c.completed).length
+
+      const idx = taskStore.serverTasks.findIndex((t: any) => t.uuid === savedTask.uuid)
+      if (idx >= 0) {
+        taskStore.serverTasks[idx] = { ...taskStore.serverTasks[idx], ...savedTask } as any
+      } else {
+        taskStore.serverTasks.unshift(savedTask as any)
+      }
+    }
   } catch (e: any) {
     toast.error(e.message || '保存失败')
   } finally {

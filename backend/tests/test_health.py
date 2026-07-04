@@ -106,12 +106,17 @@ def test_ws_ticket_real():
     import secrets
     email = f"test-ws-{secrets.token_hex(4)}@example.com"
     pwd = "Test1234"
+    from tests.conftest import fetch_captcha_for_register
+
+    captcha_id, captcha_solution = fetch_captcha_for_register(client)
     resp = client.post(
         "/api/v1/users",
         json={
             "nickname": "ws-tester",
             "provider": "password",
             "payload": {"identifier": email, "password": pwd},
+            "captchaId": captcha_id,
+            "captchaSolution": captcha_solution,
         },
     )
     if resp.status_code == 500:

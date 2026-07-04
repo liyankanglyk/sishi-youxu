@@ -6,10 +6,12 @@ import { useUiStore } from '@/stores/ui'
 import { useKeyboard } from '@/composables/useKeyboard'
 import { useToast } from '@/composables/useToast'
 import { useNotification } from '@/composables/useNotification'
+import { playCompleteChime, playMilestoneChime } from '@/composables/useSound'
 import QuadrantCanvas from '@/components/task/QuadrantCanvas.vue'
 import TaskList from '@/components/task/TaskList.vue'
 import StatsPanel from '@/components/task/StatsPanel.vue'
 import TaskModal from '@/components/task/TaskModal.vue'
+import MobileNav from '@/components/layout/MobileNav.vue'
 import type { TaskEx } from '@/stores/task'
 
 const route = useRoute()
@@ -92,12 +94,41 @@ function handleTaskClick(task: TaskEx) {
   store.setEditingUuid(task.uuid)
 }
 
-async function handleTaskComplete(task: TaskEx | null) {
+async function handleTaskComplete(task: TaskEx | null, event?: MouseEvent) {
   if (!task) { store.batchComplete(); return }
+
+  // 从点击事件提取卡片屏幕位置 → 粒子发射源
+  if (event) {
+    const cardEl = (event.target as HTMLElement).closest('.task-card')
+    if (cardEl) {
+      const rect = cardEl.getBoundingClientRect()
+      store.celebrationOrigin = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+    }
+  } else {
+    store.celebrationOrigin = null
+  }
+
+  // 完成音效（强度分级）
+  playCompleteChime(store.completionIntensity)
+
   await store.completeTask(task.uuid)
+
+  // 里程碑音效叠加
+  if (store.todayCompletedCount === 10 || store.todayCompletedCount === 25) {
+    setTimeout(() => playMilestoneChime(), 300)
+  }
+
   if (store.celebrationTitle) {
     toast.success(`已完成「${store.celebrationTitle}」`)
   }
+}
+
+function getCelebrationMessage(count: number): { label: string; icon: string; isMilestone: boolean } {
+  if (count >= 25) return { label: '今日传奇！25 项达成', icon: '👑', isMilestone: true }
+  if (count >= 10) return { label: '10 连击！效率爆表', icon: '💎', isMilestone: true }
+  if (count >= 5)  return { label: '5 连击！势不可挡', icon: '⚡', isMilestone: true }
+  if (count >= 3)  return { label: '连续完成 3 项！势头不错', icon: '🔥', isMilestone: false }
+  return { label: '已完成', icon: '', isMilestone: false }
 }
 
 async function handleTaskDelete(task: TaskEx | null) {
@@ -286,6 +317,44 @@ function handleImportDismiss() {
         <button class="submit-btn" style="margin-top: 16px; width: 100%;" @click="handleImportDismiss">知道了</button>
       </div>
     </div>
+    <!-- 移动端底部导航 + FAB -->
+    <MobileNav v-if="ui.isMobile" />
+
+    <button v-if="ui.isMobile" class="mobile-fab" @click="store.setCreating(true, 2, 2)">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+        <line x1="12" y1="5" x2="12" y2="19" />
+        <line x1="5" y1="12" x2="19" y2="12" />
+      </svg>
+    </button>
+
+    <!-- 完成庆祝浮层 -->
+    <Teleport to="body">
+      <Transition name="celebrate">
+        <div v-if="store.celebrationTitle" class="celebration-overlay">
+          <div
+            class="celebration-card"
+            :class="{ 'celebration-milestone': getCelebrationMessage(store.todayCompletedCount).isMilestone }"
+          >
+            <!-- 里程碑 shimmer 扫光 -->
+            <div v-if="getCelebrationMessage(store.todayCompletedCount).isMilestone" class="celebration-shimmer" />
+            <div class="celebration-icon-wrap">
+              <span v-if="getCelebrationMessage(store.todayCompletedCount).icon" class="celebration-emoji">
+                {{ getCelebrationMessage(store.todayCompletedCount).icon }}
+              </span>
+              <svg v-else class="celebration-check" viewBox="0 0 32 32" width="28" height="28">
+                <circle cx="16" cy="16" r="15" fill="none" stroke="var(--c-success)" stroke-width="2" />
+                <path d="M9 16l5 5 9-9" fill="none" stroke="var(--c-success)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </div>
+            <p class="celebration-label">{{ getCelebrationMessage(store.todayCompletedCount).label }}</p>
+            <p class="celebration-title-text">{{ store.celebrationTitle }}</p>
+            <p v-if="store.todayCompletedCount > 1" class="celebration-count">
+              今日已达成 <strong>{{ store.todayCompletedCount }}</strong> 项
+            </p>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -552,9 +621,210 @@ function handleImportDismiss() {
   transform: translateX(100%);
 }
 
-/* 在移动端隐藏拖拽调整宽度把手 */
+/* ══════════════════════════════════════════ */
+/* 完成庆祝浮层                              */
+/* ══════════════════════════════════════════ */
+
+.celebration-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1500;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 18vh;
+  pointer-events: none;
+}
+
+.celebration-card {
+  background: var(--glass-bg-light);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 24px;
+  padding: 24px 32px;
+  text-align: center;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.08),
+    0 0 0 1px rgba(0, 0, 0, 0.04) inset;
+}
+
+:root.dark .celebration-card {
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+}
+
+.celebration-icon-wrap {
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: center;
+}
+
+.celebration-check {
+  animation: checkDraw 0.45s var(--ease-standard) both;
+}
+
+@keyframes checkDraw {
+  0% { transform: scale(0.3); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.celebration-emoji {
+  font-size: 32px;
+  line-height: 1;
+  animation: emojiPop 0.5s var(--ease-spring) both;
+}
+
+@keyframes emojiPop {
+  0% { transform: scale(0) rotate(-15deg); opacity: 0; }
+  70% { transform: scale(1.2) rotate(5deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+/* 里程碑浮层增强 */
+.celebration-milestone {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(247, 203, 77, 0.4) !important;
+}
+
+:root.dark .celebration-milestone {
+  border-color: rgba(247, 203, 77, 0.3) !important;
+}
+
+.celebration-shimmer {
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    105deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.15) 45%,
+    rgba(255, 255, 255, 0.25) 50%,
+    rgba(255, 255, 255, 0.15) 55%,
+    transparent 65%
+  );
+  animation: shimmerSweep 1.2s ease-out forwards;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes shimmerSweep {
+  from { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+  to   { transform: translateX(100%) translateY(100%) rotate(45deg); }
+}
+
+.celebration-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--c-success);
+  margin: 0 0 4px;
+  letter-spacing: 0.04em;
+}
+
+.celebration-title-text {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--c-gray-900);
+  margin: 0;
+  line-height: 1.35;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.celebration-count {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--c-gray-500);
+}
+
+.celebration-count strong {
+  color: var(--c-brand-500);
+  font-weight: 700;
+}
+
+/* —— 浮层过渡动画 —— */
+.celebrate-enter-active {
+  transition: all 0.35s cubic-bezier(0.22, 0.98, 0.36, 1.02);
+}
+.celebrate-leave-active {
+  transition: all 0.3s var(--ease-standard);
+}
+.celebrate-enter-from {
+  opacity: 0;
+  transform: scale(0.85) translateY(-12px);
+}
+.celebrate-leave-to {
+  opacity: 0;
+  transform: scale(0.92) translateY(-6px);
+}
+
+/* ══════════════════════════════════════════ */
+/* 移动端 FAB                               */
+/* ══════════════════════════════════════════ */
+
+.mobile-fab {
+  display: none;
+  position: fixed;
+  bottom: 72px;
+  right: 16px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: none;
+  background: var(--c-brand-500);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(46, 91, 255, 0.35);
+  z-index: 85;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s var(--ease-standard), box-shadow 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-fab:active {
+  transform: scale(0.92);
+  box-shadow: 0 2px 8px rgba(46, 91, 255, 0.25);
+}
+
 @media (max-width: 767px) {
+  .mobile-fab { display: flex; }
+}
+
+/* ══════════════════════════════════════════ */
+/* 移动端通用调整                             */
+/* ══════════════════════════════════════════ */
+
+@media (max-width: 767px) {
+  /* 底部导航留白 */
+  .home-body.is-mobile {
+    padding-bottom: 56px;
+  }
+
+  /* 庆祝浮层更靠上 */
+  .celebration-overlay {
+    padding-top: 10vh;
+  }
+
   .resize-handle { display: none !important; }
+
+  .celebration-card {
+    padding: 18px 24px;
+    border-radius: 20px;
+  }
+
+  .celebration-title-text {
+    font-size: 16px;
+    max-width: 260px;
+  }
 
   .import-dialog {
     max-width: 100%;

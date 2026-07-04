@@ -205,6 +205,233 @@ async def consume_ws_ticket(ticket: str) -> str | None:
     return user_uuid
 
 
+# ---------- 登录锁定 ----------
+
+# 锁定阈值
+USER_MAX_FAILURES = 5       # 普通用户最多失败 5 次
+ADMIN_MAX_FAILURES = 3      # 管理员最多失败 3 次
+IP_MAX_FAILURES = 10        # 同一 IP 最多失败 10 次
+LOCKOUT_TTL = 900           # 锁定 15 分钟
+FAIL_WINDOW_TTL = 900       # 失败计数窗口 15 分钟
+
+
+async def check_login_locked(identifier: str, *, is_admin: bool = False) -> bool:
+    """检查账号是否已被登录锁定。
+
+    优先级：Redis 锁定标记 > Redis 失败计数 > DB locked_until。
+    返回 True 表示已锁定，应拒绝登录。
+    """
+    from src.core.redis import build_key, get_redis
+
+    max_failures = ADMIN_MAX_FAILURES if is_admin else USER_MAX_FAILURES
+
+    try:
+        redis = get_redis()
+        lock_key = build_key("login_locked", identifier)
+
+        # 1. 先查 Redis 锁定标记（最快）
+        if await redis.exists(lock_key):
+            return True
+
+        # 2. 查 Redis 失败计数
+        fail_key = build_key("login_fail", identifier)
+        fail_count_raw = await redis.get(fail_key)
+        if fail_count_raw is not None:
+            if int(fail_count_raw) >= max_failures:
+                # 失败次数已达阈值 → 补写锁定标记
+                await redis.set(lock_key, "1", ex=LOCKOUT_TTL)
+                return True
+            return False
+    except Exception:
+        pass  # Redis 不可用 → 回退到 DB
+
+    # 3. Redis 不可用时查 DB
+    return await _check_db_locked(identifier)
+
+
+async def _check_db_locked(identifier: str) -> bool:
+    """从数据库检查用户的锁定状态（Redis 不可用时的回退）。"""
+    from datetime import datetime as dt
+
+    from sqlalchemy import select
+
+    from src.core.database import AsyncSessionLocal
+    from src.models.auth import AuthIdentity, AuthProvider
+
+    try:
+        async with AsyncSessionLocal() as db:
+            # 先通过 identifier 找到 user_uuid
+            stmt = select(AuthIdentity.user_uuid).where(
+                AuthIdentity.provider == AuthProvider.password,
+                AuthIdentity.provider_uid == identifier,
+                AuthIdentity.deleted_at.is_(None),
+            )
+            row = (await db.execute(stmt)).first()
+            if row is None:
+                return False
+
+            from src.models.user import User
+            user_stmt = select(User.locked_until).where(
+                User.uuid == row.user_uuid,
+                User.deleted_at.is_(None),
+            )
+            user_row = (await db.execute(user_stmt)).first()
+            if user_row is None or user_row.locked_until is None:
+                return False
+            return user_row.locked_until > dt.utcnow()
+    except Exception:
+        return False
+
+
+async def record_login_failure(identifier: str, *, is_admin: bool = False, ip: str | None = None) -> dict:
+    """记录一次登录失败。
+
+    返回 {"locked": bool, "remaining": int}，
+    其中 remaining 为剩余尝试次数（0 表示已锁定）。
+    同时更新 DB 中的 failed_login_attempts 和 locked_until。
+    """
+    from src.core.redis import build_key, get_redis
+
+    max_failures = ADMIN_MAX_FAILURES if is_admin else USER_MAX_FAILURES
+    locked = False
+
+    try:
+        redis = get_redis()
+        fail_key = build_key("login_fail", identifier)
+        # INCR + EXPIRE 原子操作
+        count = await redis.incr(fail_key)
+        await redis.expire(fail_key, FAIL_WINDOW_TTL)
+
+        if count >= max_failures:
+            lock_key = build_key("login_locked", identifier)
+            await redis.set(lock_key, "1", ex=LOCKOUT_TTL)
+            locked = True
+
+        remaining = max(0, max_failures - count)
+    except Exception:
+        # Redis 不可用 → 回退到 DB 计数
+        remaining = 0
+        locked = await _record_db_failure(identifier, max_failures)
+
+    # IP 维度计数
+    if ip:
+        try:
+            redis2 = get_redis()
+            ip_key = build_key("login_fail_ip", ip)
+            await redis2.incr(ip_key)
+            await redis2.expire(ip_key, FAIL_WINDOW_TTL)
+        except Exception:
+            pass
+
+    return {"locked": locked, "remaining": remaining}
+
+
+async def _record_db_failure(identifier: str, max_failures: int) -> bool:
+    """在数据库中更新失败计数（Redis 不可用时的回退）。"""
+    from datetime import datetime as dt, timedelta
+
+    from sqlalchemy import select, update
+
+    from src.core.database import AsyncSessionLocal
+    from src.models.auth import AuthIdentity, AuthProvider
+    from src.models.user import User
+
+    try:
+        async with AsyncSessionLocal() as db:
+            stmt = select(AuthIdentity.user_uuid).where(
+                AuthIdentity.provider == AuthProvider.password,
+                AuthIdentity.provider_uid == identifier,
+                AuthIdentity.deleted_at.is_(None),
+            )
+            row = (await db.execute(stmt)).first()
+            if row is None:
+                return False
+
+            user_stmt = select(User.failed_login_attempts).where(
+                User.uuid == row.user_uuid,
+                User.deleted_at.is_(None),
+            )
+            user_row = (await db.execute(user_stmt)).first()
+            if user_row is None:
+                return False
+
+            new_count = (user_row.failed_login_attempts or 0) + 1
+            locked = new_count >= max_failures
+
+            values = {"failed_login_attempts": new_count}
+            if locked:
+                values["locked_until"] = dt.utcnow() + timedelta(seconds=LOCKOUT_TTL)
+
+            await db.execute(
+                update(User).where(User.uuid == row.user_uuid).values(**values)
+            )
+            await db.commit()
+            return locked
+    except Exception:
+        return False
+
+
+async def reset_login_failures(identifier: str) -> None:
+    """登录成功后清除该账号的失败计数和锁定标记。"""
+    from src.core.redis import build_key, get_redis
+
+    try:
+        redis = get_redis()
+        await redis.delete(
+            build_key("login_fail", identifier),
+            build_key("login_locked", identifier),
+        )
+    except Exception:
+        pass
+
+    # 同时清除 DB 中的计数
+    await _reset_db_failures(identifier)
+
+
+async def _reset_db_failures(identifier: str) -> None:
+    """清除数据库中的失败计数（Redis 不可用时的回退）。"""
+    from sqlalchemy import select, update
+
+    from src.core.database import AsyncSessionLocal
+    from src.models.auth import AuthIdentity, AuthProvider
+    from src.models.user import User
+
+    try:
+        async with AsyncSessionLocal() as db:
+            stmt = select(AuthIdentity.user_uuid).where(
+                AuthIdentity.provider == AuthProvider.password,
+                AuthIdentity.provider_uid == identifier,
+                AuthIdentity.deleted_at.is_(None),
+            )
+            row = (await db.execute(stmt)).first()
+            if row is None:
+                return
+
+            await db.execute(
+                update(User)
+                .where(User.uuid == row.user_uuid)
+                .values(failed_login_attempts=0, locked_until=None)
+            )
+            await db.commit()
+    except Exception:
+        pass
+
+
+async def check_ip_locked(ip: str) -> bool:
+    """检查 IP 是否因过多失败尝试被锁定。"""
+    from src.core.redis import build_key, get_redis
+
+    try:
+        redis = get_redis()
+        ip_key = build_key("login_fail_ip", ip)
+        count_raw = await redis.get(ip_key)
+        if count_raw is not None and int(count_raw) >= IP_MAX_FAILURES:
+            return True
+    except Exception:
+        pass
+    return False
+
+
 # ---------- 其他 ----------
 
 def sha256_hex(value: str) -> str:

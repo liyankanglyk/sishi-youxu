@@ -53,10 +53,15 @@ def _assert_err_envelope(body: dict[str, Any], *, code: str | None = None) -> No
 
 
 def _register(client: TestClient, *, email: str, nickname: str | None = None, password: str = "Secret123") -> dict:
+    from tests.conftest import fetch_captcha_for_register
+
+    captcha_id, captcha_solution = fetch_captcha_for_register(client)
     payload = {
         "nickname": nickname or f"u-{secrets.token_hex(3)}",
         "provider": "password",
         "payload": {"identifier": email, "password": password},
+        "captchaId": captcha_id,
+        "captchaSolution": captcha_solution,
     }
     resp = client.post("/api/v1/users", json=payload)
     assert resp.status_code == 200, f"register failed: {resp.status_code} {resp.text}"
@@ -133,12 +138,17 @@ class TestRegister:
     """注册 — spec §注册 / §响应外壳。"""
 
     def test_register_password_success(self, client: TestClient, random_email: str) -> None:
+        from tests.conftest import fetch_captcha_for_register
+
+        captcha_id, captcha_solution = fetch_captcha_for_register(client)
         resp = client.post(
             "/api/v1/users",
             json={
                 "nickname": "新用户",
                 "provider": "password",
                 "payload": {"identifier": random_email, "password": "Secret123"},
+                "captchaId": captcha_id,
+                "captchaSolution": captcha_solution,
             },
         )
         assert resp.status_code == 200

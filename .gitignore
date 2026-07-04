@@ -71,6 +71,7 @@ coverage.xml
 backend/data/
 backend/storage/
 backend/uploads/
+backend/src/avatars/
 
 # FastAPI / Uvicorn
 *.pid

@@ -99,10 +99,15 @@ def _register_user(
     password: str = "Secret123",
 ) -> dict[str, Any]:
     """注册并返回 LoginResponse.data；保持与现有 test_auth.py 一致的 helper 语义。"""
+    from tests.conftest import fetch_captcha_for_register
+
+    captcha_id, captcha_solution = fetch_captcha_for_register(client)
     payload = {
         "nickname": nickname or f"u-{secrets.token_hex(3)}",
         "provider": "password",
         "payload": {"identifier": email, "password": password},
+        "captchaId": captcha_id,
+        "captchaSolution": captcha_solution,
     }
     resp = client.post("/api/v1/users", json=payload)
     assert resp.status_code == 200, f"register failed: {resp.status_code} {resp.text}"

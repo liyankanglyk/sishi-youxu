@@ -85,6 +85,7 @@ function handleNotifClick(n: NotificationOut) {
   // 任务提醒：打开任务弹窗
   if (n.kind === 'task_reminder' && n.taskUuid) {
     notifOpen.value = false
+    ui.closeMobileNotifications()
     store.setEditingUuid(n.taskUuid)
   }
 }
@@ -151,7 +152,10 @@ if (typeof window !== 'undefined') {
   ;(window as any).__focusHeaderSearch = focusSearch
 }
 
-// ── 工具栏操作 ──
+function openKeyboardHelp() {
+  ui.openKeyboardHelp()
+}
+
 async function handleNotifToggle() {
   if (ui.notificationsEnabled) {
     ui.setNotificationsEnabled(false)
@@ -163,6 +167,7 @@ async function handleNotifToggle() {
   }
 }
 
+// ── 工具栏操作 ──
 function handleNewTask() { store.setCreating(true, 2, 2) }
 function handleUndo() { store.undo().catch(() => {}) }
 function handleRedo() { store.redo().catch(() => {}) }
@@ -229,6 +234,17 @@ function handleImport() { ui.triggerImport() }
       </button>
 
       <div class="toolbar-sep" />
+
+      <button
+        class="icon-btn help-btn"
+        title="键盘快捷键 (?)"
+        @click="openKeyboardHelp"
+      >
+        <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+          <rect x="1.5" y="3" width="13" height="10" rx="1.5"/>
+          <path d="M5 7h6M5 9.5h6M5 11h3"/>
+        </svg>
+      </button>
 
       <button
         class="icon-btn today-btn"
@@ -368,6 +384,19 @@ function handleImport() { ui.triggerImport() }
         </svg>
       </button>
 
+      <!-- 通知铃铛 -->
+      <button
+        class="icon-btn mobile-notif-btn"
+        :class="{ 'has-unread': unreadCount > 0 }"
+        @click="ui.openMobileNotifications(); toggleNotifPanel()"
+      >
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+        <span v-if="unreadCount" class="mobile-notif-badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+      </button>
+
       <!-- 新建任务 -->
       <button class="new-task-btn" @click="handleNewTask">+</button>
 
@@ -431,6 +460,15 @@ function handleImport() { ui.triggerImport() }
               <span v-else class="menu-badge-off">关</span>
             </button>
 
+            <!-- 快捷键 -->
+            <button @click="openKeyboardHelp(); ui.closeMobileOverflowMenu()">
+              <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+                <rect x="1.5" y="3" width="13" height="10" rx="1.5"/>
+                <path d="M5 7h6M5 9.5h6M5 11h3"/>
+              </svg>
+              键盘快捷键
+            </button>
+
             <!-- 导入 / 导出 -->
             <div class="menu-row">
               <button @click="handleImport(); ui.closeMobileOverflowMenu()">
@@ -458,6 +496,14 @@ function handleImport() { ui.triggerImport() }
             <div class="menu-divider" />
 
             <!-- 通知 -->
+            <button @click="ui.openMobileNotifications(); toggleNotifPanel(); ui.closeMobileOverflowMenu()">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+              </svg>
+              查看通知
+              <span v-if="unreadCount" class="menu-badge-notif">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+            </button>
             <button @click="handleNotifToggle()">
               {{ ui.notificationsEnabled ? '🔔' : '🔕' }}
               通知（{{ ui.notificationsEnabled ? '开' : '关' }}）
@@ -473,6 +519,86 @@ function handleImport() { ui.triggerImport() }
             <button @click="router.push('/settings'); ui.closeMobileOverflowMenu()">
               <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="2.5"/><path d="M8 1.5v1M8 13.5v1M13.5 8h-1M3.5 8h-1M11.9 4.1l-.7.7M4.8 11.2l-.7.7M11.9 11.9l-.7-.7M4.8 4.8l-.7-.7"/></svg>
               设置
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+
+  <!-- 移动端通知面板（底部弹出） -->
+  <Teleport to="body" v-if="ui.isMobile">
+    <Transition name="notif-sheet">
+      <div v-if="ui.showMobileNotifications" class="mobile-notif-container">
+        <div class="mobile-notif-scrim" @click="ui.closeMobileNotifications(); notifOpen = false" />
+        <div class="mobile-notif-sheet">
+          <div class="mobile-notif-handle-row">
+            <span class="mobile-notif-handle" />
+          </div>
+          <!-- 头部 -->
+          <div class="notif-header">
+            <div class="notif-header-left">
+              <span class="notif-title">通知</span>
+              <span v-if="unreadCount" class="notif-count-badge">{{ unreadCount }} 条未读</span>
+            </div>
+            <div class="notif-header-actions">
+              <button v-if="unreadCount" class="notif-mark-all" @click="markAllRead">全部已读</button>
+              <button class="mobile-notif-close" @click="ui.closeMobileNotifications(); notifOpen = false">&times;</button>
+            </div>
+          </div>
+
+          <!-- 主体 -->
+          <div class="notif-body">
+            <!-- 加载骨架屏 -->
+            <template v-if="notifLoading">
+              <div v-for="i in 3" :key="'msk'+i" class="notif-skeleton">
+                <div class="sk-avatar" />
+                <div class="sk-lines">
+                  <div class="sk-line w-60" />
+                  <div class="sk-line w-80" />
+                  <div class="sk-line w-30" />
+                </div>
+              </div>
+            </template>
+
+            <!-- 通知列表 -->
+            <template v-else-if="notifications.length">
+              <div
+                v-for="n in notifications"
+                :key="n.uuid"
+                :class="['notif-item', { unread: !n.isRead, 'is-link': n.kind === 'task_reminder' && n.taskUuid }]"
+                @click="handleNotifClick(n)"
+              >
+                <span class="notif-item-icon">{{ notifKindIcon(n.kind) }}</span>
+                <div class="notif-item-content">
+                  <div class="notif-item-head">
+                    <span class="notif-item-title">{{ n.title }}</span>
+                    <span :class="['notif-kind-badge', n.kind]">{{ notifKindLabel(n.kind) }}</span>
+                  </div>
+                  <div class="notif-item-body">{{ n.body }}</div>
+                  <div class="notif-item-time">{{ timeAgo(n.createdAt) }}</div>
+                </div>
+                <span v-if="!n.isRead" class="notif-unread-dot" />
+                <button class="notif-delete-btn" title="删除" @click.stop="deleteNotif(n.uuid, n.isRead)">
+                  <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <line x1="4" y1="4" x2="12" y2="12" /><line x1="12" y1="4" x2="4" y2="12" />
+                  </svg>
+                </button>
+              </div>
+            </template>
+
+            <!-- 空状态 -->
+            <div v-else class="notif-empty">
+              <span class="notif-empty-icon">🔔</span>
+              <span class="notif-empty-text">暂无通知</span>
+              <span class="notif-empty-sub">新消息会在这里显示</span>
+            </div>
+          </div>
+
+          <!-- 底部 -->
+          <div v-if="notifMeta?.hasMore" class="notif-footer">
+            <button class="notif-load-more" :disabled="notifLoadingMore" @click="loadMore">
+              {{ notifLoadingMore ? '加载中...' : `加载更多 (${notifMeta.total - notifications.length} 条)` }}
             </button>
           </div>
         </div>
@@ -1263,6 +1389,18 @@ function handleImport() { ui.triggerImport() }
   font-weight: 500;
 }
 
+.menu-badge-notif {
+  margin-left: auto;
+  font-size: 11px;
+  background: var(--c-danger);
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+  min-width: 20px;
+  text-align: center;
+}
+
 /* 菜单过渡动画 */
 .mobile-menu-enter-active,
 .mobile-menu-leave-active {
@@ -1279,5 +1417,155 @@ function handleImport() { ui.triggerImport() }
 .mobile-menu-enter-from .mobile-menu-panel,
 .mobile-menu-leave-to .mobile-menu-panel {
   transform: translateX(100%);
+}
+
+/* ══════════════════════════════════════════ */
+/* 移动端通知底部弹出面板                    */
+/* ══════════════════════════════════════════ */
+
+.mobile-notif-container {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.mobile-notif-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.mobile-notif-sheet {
+  position: relative;
+  max-height: 80vh;
+  background: var(--surface-primary);
+  border-radius: 20px 20px 0 0;
+  display: flex;
+  flex-direction: column;
+  z-index: 1;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+}
+
+.mobile-notif-handle-row {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 4px;
+  flex-shrink: 0;
+}
+
+.mobile-notif-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--c-gray-300);
+}
+
+/* 头部适配 */
+.mobile-notif-sheet .notif-header {
+  padding: 8px 16px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.notif-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mobile-notif-close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: var(--c-gray-100);
+  border-radius: 8px;
+  color: var(--c-gray-500);
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.mobile-notif-close:hover {
+  background: var(--c-gray-200);
+  color: var(--c-gray-700);
+}
+
+/* 主体滚动 */
+.mobile-notif-sheet .notif-body {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* 通知项移动端适配 */
+.mobile-notif-sheet .notif-item {
+  padding: 14px 16px;
+}
+
+.mobile-notif-sheet .notif-delete-btn {
+  opacity: 0.6;
+  top: 10px;
+  right: 10px;
+}
+
+/* 底部加载更多 */
+.mobile-notif-sheet .notif-footer {
+  flex-shrink: 0;
+}
+
+/* ── 底部弹出过渡动画 ── */
+.notif-sheet-enter-active,
+.notif-sheet-leave-active {
+  transition: opacity 0.3s ease;
+}
+.notif-sheet-enter-active .mobile-notif-sheet,
+.notif-sheet-leave-active .mobile-notif-sheet {
+  transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.notif-sheet-enter-from,
+.notif-sheet-leave-to {
+  opacity: 0;
+}
+.notif-sheet-enter-from .mobile-notif-sheet,
+.notif-sheet-leave-to .mobile-notif-sheet {
+  transform: translateY(100%);
+}
+
+/* ── 移动端通知铃铛徽标 ── */
+@media (max-width: 767px) {
+  .mobile-notif-btn {
+    position: relative;
+  }
+
+  .mobile-notif-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    min-width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    background: var(--c-danger);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    line-height: 1;
+    box-shadow: 0 0 0 2px var(--glass-bg-light);
+  }
+
+  .mobile-notif-btn.has-unread {
+    animation: bell-ring 3s ease-in-out infinite;
+  }
 }
 </style>

@@ -232,7 +232,7 @@ onMounted(fetch)
       <el-table-column prop="taskCount" label="关联任务数" width="100" sortable />
       <el-table-column label="所属用户" min-width="140">
         <template #default="{ row }">
-          <span v-if="row.userNickname === 'system' || !row.userNickname" style="color:#94a3b8">系统预设</span>
+          <span v-if="row.userNickname === 'system' || !row.userNickname" style="color:#64748b">系统预设</span>
           <span v-else>{{ row.userNickname }}</span>
         </template>
       </el-table-column>
@@ -337,7 +337,7 @@ onMounted(fetch)
                 {{ u.nickname }}
               </el-tag>
             </template>
-            <span v-else style="color:#94a3b8">暂无</span>
+            <span v-else style="color:#64748b">暂无</span>
           </el-descriptions-item>
         </el-descriptions>
       </div>

@@ -44,6 +44,7 @@ class Task(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
         Index("idx_user_due_date", "user_uuid", "due_date"),
         Index("idx_user_remind", "remind_at", "reminder_state"),
         Index("idx_updated_at", "updated_at"),
+        Index("idx_user_deleted_sort", "user_uuid", "deleted_at", "sort_order", "created_at"),
     )
 
     user_uuid: Mapped[str] = mapped_column(CHAR(36), nullable=False, index=True)

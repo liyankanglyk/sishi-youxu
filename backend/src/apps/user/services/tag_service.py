@@ -4,6 +4,7 @@
 - 标签 CRUD，含名称唯一性校验（用户作用域 + 预设标签）
 - HEX 颜色校验
 - 预设标签保护（不可编辑/删除预设标签）
+- Redis 缓存加速（list_tags 缓存 5 分钟，写操作自动失效）
 """
 
 from __future__ import annotations
@@ -15,6 +16,12 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.cache import (
+    TAG_LIST_TTL,
+    cache_get,
+    cache_set,
+    invalidate_user_tags,
+)
 from src.core.exceptions import (
     ConflictException,
     NotFoundException,
@@ -46,7 +53,12 @@ class TagService:
         }
 
     async def list_tags(self, user_uuid: str) -> dict[str, Any]:
-        """列出用户的所有标签（含预设标签）。"""
+        """列出用户的所有标签（含预设标签），Redis 缓存 5 分钟。"""
+        # 先查缓存
+        cached = await cache_get("tags", user_uuid)
+        if cached is not None:
+            return cached
+
         stmt = select(Tag).where(
             Tag.deleted_at.is_(None),
             (Tag.user_uuid == user_uuid) | (Tag.is_preset.is_(True)),
@@ -54,7 +66,7 @@ class TagService:
 
         rows = (await self.db.execute(stmt)).scalars().all()
         items = [self._tag_to_out(t) for t in rows]
-        return {
+        result: dict[str, Any] = {
             "items": items,
             "meta": {
                 "total": len(items),
@@ -63,6 +75,10 @@ class TagService:
                 "hasMore": False,
             },
         }
+
+        # 写缓存（失败不影响主流程）
+        await cache_set("tags", user_uuid, value=result, ttl=TAG_LIST_TTL)
+        return result
 
     async def create_tag(self, user_uuid: str, data: dict[str, Any]) -> dict[str, Any]:
         """创建自定义标签。"""
@@ -113,6 +129,8 @@ class TagService:
         await self.db.flush()
         await self.db.refresh(tag)
 
+        # 失效该用户的标签缓存
+        await invalidate_user_tags(user_uuid)
         return self._tag_to_out(tag)
 
     async def update_tag(
@@ -183,6 +201,8 @@ class TagService:
             await self.db.flush()
             await self.db.refresh(tag)
 
+        # 失效该用户的标签缓存
+        await invalidate_user_tags(user_uuid)
         return self._tag_to_out(tag)
 
     async def delete_tag(self, uuid: str, user_uuid: str) -> None:
@@ -207,6 +227,9 @@ class TagService:
 
         tag.deleted_at = datetime.utcnow()
         await self.db.flush()
+
+        # 失效该用户的标签缓存
+        await invalidate_user_tags(user_uuid)
 
 
 __all__ = ["TagService"]

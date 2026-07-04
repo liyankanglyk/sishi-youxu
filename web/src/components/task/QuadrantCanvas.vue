@@ -12,7 +12,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'task-click': [task: TaskEx]
-  'task-complete': [task: TaskEx | null]
+  'task-complete': [task: TaskEx | null, event?: MouseEvent]
   'task-delete': [task: TaskEx | null]
   'select-toggle': [uuid: string]
   'double-click': [urgencyLevel: number, importanceLevel: number]
@@ -60,19 +60,33 @@ const wrapperRefs = new Map<string, HTMLElement>()
 const DRAG_THRESHOLD = 4
 
 // ── 画布布局常量 ──
-const CANVAS_MARGIN = 6
-const CANVAS_RANGE = 88
+const CANVAS_MARGIN = 10
+const CANVAS_RANGE = 80
+
 const LEVEL_MIN = -4
 const LEVEL_MAX = 4
 const LEVEL_RANGE = LEVEL_MAX - LEVEL_MIN  // 8
 
+// 移动端缩小 margin，让象限更宽
+const isMobile = window.matchMedia?.('(max-width: 767px)').matches ?? false
+const MOBILE_CANVAS_MARGIN = isMobile ? 12 : CANVAS_MARGIN
+const MOBILE_CANVAS_RANGE = isMobile ? 76 : CANVAS_RANGE
+
+// 拖拽时使用的全局 margin/range（运行时切换）
+function getCanvasMargin(): number { return isMobile ? MOBILE_CANVAS_MARGIN : CANVAS_MARGIN }
+function getCanvasRange(): number { return isMobile ? MOBILE_CANVAS_RANGE : CANVAS_RANGE }
+
 function levelToPercent(level: number): number {
+  const m = getCanvasMargin()
+  const r = getCanvasRange()
   const clamped = Math.max(LEVEL_MIN, Math.min(LEVEL_MAX, level))
-  return ((clamped - LEVEL_MIN) / LEVEL_RANGE) * CANVAS_RANGE + CANVAS_MARGIN
+  return ((clamped - LEVEL_MIN) / LEVEL_RANGE) * r + m
 }
 
 function percentToLevel(pct: number): number {
-  const raw = Math.round((pct - CANVAS_MARGIN) / CANVAS_RANGE * LEVEL_RANGE) + LEVEL_MIN
+  const m = getCanvasMargin()
+  const r = getCanvasRange()
+  const raw = Math.round((pct - m) / r * LEVEL_RANGE) + LEVEL_MIN
   return Math.max(LEVEL_MIN, Math.min(LEVEL_MAX, raw))
 }
 
@@ -96,6 +110,9 @@ function tasksForQuadrant(qId: string): TaskEx[] {
 //     下方的卡片以明显的对角偏移露出一角 ──
 const STACK_OFFSET_PX = 22 // 堆叠中相邻卡片之间的像素偏移
 const STACK_MAX_OFFSET_PX = 88 // 总偏移上限，避免偏离网格点过远
+
+// 移动端堆叠偏移缩小，防止卡片溢出象限
+const MOBILE_STACK_MAX = isMobile ? 56 : STACK_MAX_OFFSET_PX
 
 // 缓存 key → 每个任务的 {stackIndex, total, z}
 let _stackCacheKey = ''
@@ -160,7 +177,7 @@ function taskStyle(task: TaskEx): Record<string, string> {
     return {
       left: `${baseLeftPct}%`,
       top: `${baseTopPct}%`,
-      zIndex: '1',
+      zIndex: '2',
     }
   }
 
@@ -168,9 +185,9 @@ function taskStyle(task: TaskEx): Record<string, string> {
   // 偏移量用 calc() 表示，在百分比位置上加上 px。
   // wrapper 设置了 transform: translate(-50%,-50%)，因此 left/top 指的是卡片中心。
   // 增加的 px 会让位于堆叠深处的卡片中心向右下方偏移。
-  const px = Math.min(e.stackIndex * STACK_OFFSET_PX, STACK_MAX_OFFSET_PX)
+  const px = Math.min(e.stackIndex * STACK_OFFSET_PX, MOBILE_STACK_MAX)
   // 堆叠更深的卡片在垂直方向上偏移略小（呈现更明显的扇形展开）
-  const pxY = Math.min(e.stackIndex * (STACK_OFFSET_PX * 0.6), STACK_MAX_OFFSET_PX * 0.6)
+  const pxY = Math.min(e.stackIndex * (STACK_OFFSET_PX * 0.6), MOBILE_STACK_MAX * 0.6)
   return {
     left: `calc(${baseLeftPct}% + ${px}px)`,
     top: `calc(${baseTopPct}% + ${pxY}px)`,
@@ -184,8 +201,10 @@ function setWrapperRef(uuid: string, el: Element | null) {
 }
 
 function gridPointToLevel(gx: number, gy: number): { u: number; i: number } {
-  const canvasXPct = CANVAS_MARGIN + gx * CANVAS_RANGE
-  const canvasYPct = CANVAS_MARGIN + gy * CANVAS_RANGE
+  const m = getCanvasMargin()
+  const r = getCanvasRange()
+  const canvasXPct = m + gx * r
+  const canvasYPct = m + gy * r
   return {
     u: percentToLevel(canvasXPct),
     i: -percentToLevel(canvasYPct),
@@ -246,22 +265,33 @@ function onPointerMove(e: PointerEvent) {
   }
   drag.active = true
 
-  // 卡片中心在画布像素坐标系中的位置
-  const cxCanvas = e.clientX - drag.offsetX - drag.canvasLeft
-  const cyCanvas = e.clientY - drag.offsetY - drag.canvasTop
-  const cxClamped = Math.max(0, Math.min(drag.canvasWidth, cxCanvas))
-  const cyClamped = Math.max(0, Math.min(drag.canvasHeight, cyCanvas))
+  // 实时获取画布尺寸（避免使用 pointerdown 时捕获的旧值）
+  const canvas = canvasRef.value
+  if (!canvas) return
+  const canvasRect = canvas.getBoundingClientRect()
+  const liveWidth = canvasRect.width
+  const liveHeight = canvasRect.height
 
-  // 转换为画布 0..1 比例 → level → 吸附后的 level
-  const gx = cxClamped / drag.canvasWidth
-  const gy = cyClamped / drag.canvasHeight
+  // 卡片中心在画布像素坐标系中的位置
+  const cxCanvas = e.clientX - drag.offsetX - canvasRect.left
+  const cyCanvas = e.clientY - drag.offsetY - canvasRect.top
+  const cxClamped = Math.max(0, Math.min(liveWidth, cxCanvas))
+  const cyClamped = Math.max(0, Math.min(liveHeight, cyCanvas))
+
+  // 直接映射到画布百分比（精确跟随光标，不做 grid snap）
+  const rawLeftPct = getCanvasMargin() + (cxClamped / liveWidth) * getCanvasRange()
+  const rawTopPct = getCanvasMargin() + (cyClamped / liveHeight) * getCanvasRange()
+
+  // 用百分比定位，与静态定位坐标系完全一致
+  drag.liveLeft = `${rawLeftPct}%`
+  drag.liveTop = `${rawTopPct}%`
+
+  // 仍计算吸附 level 用于徽标显示与松手后的落点
+  const gx = cxClamped / liveWidth
+  const gy = cyClamped / liveHeight
   const { u, i } = gridPointToLevel(gx, gy)
   drag.snappedU = u
   drag.snappedI = i
-
-  // 将吸附后的 level 重新换算为画布像素位置，用于 liveLeft/Top
-  drag.liveLeft = `${(levelToPercent(u) / 100) * drag.canvasWidth}px`
-  drag.liveTop = `${(levelToPercent(-i) / 100) * drag.canvasHeight}px`
 }
 
 function endDragCleanup() {
@@ -332,6 +362,20 @@ function handleTaskClick(task: TaskEx) {
     @click.capture="onClickCapture"
     @dblclick="onCanvasDblClick"
   >
+    <!-- 网格参考点（9×9 坐标定位，淡色 dot grid） -->
+    <svg class="grid-dots" aria-hidden="true">
+      <defs>
+        <pattern id="dot-grid-pattern" x="0" y="0" width="10" height="10" patternUnits="userSpaceOnUse">
+          <circle cx="5" cy="5" r="0.9" class="grid-dot" />
+        </pattern>
+        <pattern id="dot-grid-pattern-major" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+          <circle cx="10" cy="10" r="1.4" class="grid-dot-major" />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#dot-grid-pattern)" />
+      <rect width="100%" height="100%" fill="url(#dot-grid-pattern-major)" />
+    </svg>
+
     <!-- 象限背景 + 空状态 -->
     <div class="quadrant-grid">
       <div
@@ -374,7 +418,7 @@ function handleTaskClick(task: TaskEx) {
         :density="density"
         :dimmed="store.isDimmed(task)"
         @click="(t: TaskOut) => handleTaskClick(t as TaskEx)"
-        @complete="(t: TaskOut) => emit('task-complete', t as TaskEx)"
+        @complete="(t: TaskOut, e: MouseEvent) => emit('task-complete', t as TaskEx, e)"
         @delete="(t: TaskOut) => emit('task-delete', t as TaskEx)"
         @contextmenu="(t: TaskOut) => emit('select-toggle', t.uuid)"
       />
@@ -403,7 +447,7 @@ function handleTaskClick(task: TaskEx) {
     <div v-if="selectMode && (selectedIds?.length ?? 0) > 0" class="batch-bar">
       <span class="batch-count">已选 {{ selectedIds?.length }} 项</span>
       <div class="batch-actions">
-        <button class="batch-btn" @click="emit('task-complete', null as any)">
+        <button class="batch-btn" @click="emit('task-complete', null)">
           <svg viewBox="0 0 16 16" width="14" height="14"><path d="M3 8l3 3 7-7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
           完成
         </button>
@@ -423,6 +467,29 @@ function handleTaskClick(task: TaskEx) {
   height: 100%;
   width: 100%;
 }
+
+/* ── 网格参考点（淡色 dot grid，9×9 坐标系视觉锚点） ── */
+.grid-dots {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.grid-dot {
+  fill: var(--c-gray-400);
+  opacity: 0.18;
+}
+
+.grid-dot-major {
+  fill: var(--c-gray-500);
+  opacity: 0.22;
+}
+
+:root.dark .grid-dot { fill: rgba(255, 255, 255, 0.15); opacity: 1; }
+:root.dark .grid-dot-major { fill: rgba(255, 255, 255, 0.22); opacity: 1; }
 
 /* ── 象限网格（仅背景） ── */
 .quadrant-grid {
@@ -537,7 +604,7 @@ function handleTaskClick(task: TaskEx) {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 5;
+  z-index: 1;
 }
 
 .axis-h-line {
@@ -672,9 +739,9 @@ function handleTaskClick(task: TaskEx) {
 /* 移动端适配 */
 @media (max-width: 767px) {
   .ax-label {
-    font-size: 8px;
-    padding: 0px 3px;
-    border-radius: 3px;
+    font-size: 10px;
+    padding: 2px 5px;
+    border-radius: 4px;
   }
 
   .ax-top    { top: 2px; }

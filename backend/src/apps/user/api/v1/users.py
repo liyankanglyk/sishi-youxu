@@ -37,11 +37,20 @@ router = APIRouter(prefix="/users", tags=["user-users"])
 
 @router.post("", summary="注册新用户", description="注册后自动登录并签发 JWT")
 async def register(body: RegisterRequest, db: DbSession, request: Request) -> dict:
-    """注册并自动登录（sign-up + sign-in 合并为单次调用）。"""
+    """注册并自动登录（sign-up + sign-in 合并为单次调用）。
+
+    安全加固：注册前必须校验图形验证码。
+    """
     svc = AuthService(db)
     svc._request_ip = request.client.host if request.client else None
     svc._request_ua = request.headers.get("User-Agent") or None
-    result = await svc.register(body.nickname, body.provider, body.payload or {})
+    result = await svc.register(
+        body.nickname,
+        body.provider,
+        body.payload or {},
+        captcha_id=body.captchaId,
+        captcha_solution=body.captchaSolution,
+    )
     await db.commit()
     return ok(result)
 

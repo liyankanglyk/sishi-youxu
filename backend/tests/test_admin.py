@@ -56,9 +56,17 @@ def _bearer(token: str) -> dict[str, str]:
 
 def _admin_login_or_skip(client: TestClient) -> dict[str, Any]:
     """admin/123456 登录；admin_user 表不存在或密码不对就 pytest.skip。"""
+    from tests.conftest import fetch_captcha_for_admin_login
+
+    captcha_id, captcha_solution = fetch_captcha_for_admin_login(client)
     resp = client.post(
         "/api/v1/admin/auth/tokens",
-        json={"username": "admin", "password": "123456"},
+        json={
+            "username": "admin",
+            "password": "123456",
+            "captchaId": captcha_id,
+            "captchaSolution": captcha_solution,
+        },
     )
     if resp.status_code == 500:
         pytest.skip(f"admin login returned 500 (infra): {resp.text[:200]}")
@@ -74,10 +82,15 @@ def _register_user(
     nickname: str | None = None,
     password: str = "Secret123",
 ) -> dict[str, Any]:
+    from tests.conftest import fetch_captcha_for_register
+
+    captcha_id, captcha_solution = fetch_captcha_for_register(client)
     payload = {
         "nickname": nickname or f"u-{secrets.token_hex(3)}",
         "provider": "password",
         "payload": {"identifier": email, "password": password},
+        "captchaId": captcha_id,
+        "captchaSolution": captcha_solution,
     }
     resp = client.post("/api/v1/users", json=payload)
     assert resp.status_code == 200, f"register failed: {resp.status_code} {resp.text}"

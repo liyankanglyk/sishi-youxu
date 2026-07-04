@@ -32,10 +32,14 @@ class LoginRequest(BaseModel):
     - `password`：账号密码登录（payload.identifier + payload.password）
     - `phone_sms`：手机号+短信验证码（payload.phone + payload.code）
     - `email_code`：邮箱+邮箱验证码（payload.email + payload.code）
+
+    安全加固：登录失败 >= 2 次后必须提供 captchaId + captchaSolution。
     """
 
     provider: ProviderLiteral = Field(..., description="登录方式")
     payload: dict = Field(default_factory=dict, description="认证凭据，结构因 provider 而异")
+    captchaId: Optional[str] = Field(default=None, description="图形验证码 ID（连续失败后必填）")
+    captchaSolution: Optional[str] = Field(default=None, description="图形验证码答案（连续失败后必填）")
 
 
 class WechatLoginRequest(BaseModel):
@@ -122,6 +126,8 @@ class RegisterRequest(BaseModel):
     nickname: str = Field(..., min_length=2, max_length=20, description="昵称")
     provider: ProviderLiteral = Field(..., description="注册方式：password / phone_sms / email_code")
     payload: dict = Field(default_factory=dict, description="凭据对象，因 provider 而异")
+    captchaId: Optional[str] = Field(default=None, description="图形验证码 ID（安全加固：注册时必填）")
+    captchaSolution: Optional[str] = Field(default=None, description="图形验证码答案（安全加固：注册时必填）")
 
 
 # ---------------------------------------------------------------------------

@@ -22,6 +22,8 @@ def _service(db: DbSession, request: Request | None = None) -> AdminService:
     if request:
         svc._request_ip = request.client.host if request.client else None
         svc._request_ua = request.headers.get("User-Agent")
+        svc._request_method = request.method
+        svc._request_path = request.url.path
     return svc
 
 

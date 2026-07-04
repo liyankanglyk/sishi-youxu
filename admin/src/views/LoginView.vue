@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAdminAuthStore } from '@/stores/adminAuth'
+import { adminApi } from '@/api/admin'
 
 const router = useRouter()
 const auth = useAdminAuthStore()
@@ -11,22 +12,55 @@ const password = ref('')
 const loading = ref(false)
 const errorMsg = ref('')
 
+// 图形验证码
+const captchaId = ref('')
+const captchaSolution = ref('')
+const captchaImage = ref('')
+const captchaLoading = ref(false)
+
+async function loadCaptcha() {
+  captchaLoading.value = true
+  try {
+    // 拦截器已解壳 → response.data = 内层 captcha 数据
+    const { data } = await adminApi.getAdminCaptcha()
+    captchaImage.value = data.image
+    captchaId.value = data.captcha_id
+    captchaSolution.value = ''
+  } catch (e: any) {
+    errorMsg.value = e.message || '验证码加载失败'
+  } finally {
+    captchaLoading.value = false
+  }
+}
+
 async function handleLogin() {
   if (!username.value || !password.value) {
     errorMsg.value = '请输入用户名和密码'
     return
   }
+  if (!captchaId.value || !captchaSolution.value) {
+    errorMsg.value = '请输入图形验证码'
+    return
+  }
   loading.value = true
   errorMsg.value = ''
   try {
-    await auth.login(username.value, password.value)
+    await auth.login(
+      username.value,
+      password.value,
+      { captchaId: captchaId.value, captchaSolution: captchaSolution.value },
+    )
     router.push('/admin/dashboard')
   } catch (e: any) {
     errorMsg.value = e.message || '登录失败'
+    // 失败后刷新验证码
+    await loadCaptcha()
   } finally {
     loading.value = false
   }
 }
+
+onMounted(loadCaptcha)
 </script>
 
 <template>
@@ -64,6 +98,35 @@ async function handleLogin() {
           <div class="input-wrap">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             <input v-model="password" type="password" placeholder="请输入密码" autocomplete="current-password" />
+          </div>
+        </div>
+
+        <!-- 图形验证码 -->
+        <div class="form-field">
+          <label>图形验证码</label>
+          <div class="captcha-row">
+            <div class="input-wrap captcha-input-wrap">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+              <input
+                v-model="captchaSolution"
+                type="text"
+                placeholder="请输入验证码"
+                maxlength="6"
+                autocomplete="off"
+                class="captcha-input"
+              />
+            </div>
+            <button
+              type="button"
+              class="captcha-img-btn"
+              :disabled="captchaLoading"
+              @click="loadCaptcha"
+              :title="captchaLoading ? '加载中...' : '点击换一张'"
+            >
+              <img v-if="captchaImage" :src="captchaImage" alt="captcha" class="captcha-img" />
+              <span v-else-if="captchaLoading" class="captcha-placeholder">···</span>
+              <span v-else class="captcha-placeholder">点击加载</span>
+            </button>
           </div>
         </div>
 
@@ -163,7 +226,7 @@ async function handleLogin() {
 
 .login-brand p {
   font-size: 13px;
-  color: #94a3b8;
+  color: #64748b;
   margin: 0;
 }
 
@@ -215,7 +278,54 @@ async function handleLogin() {
 }
 
 .input-wrap input::placeholder {
-  color: #cbd5e1;
+  color: #94a3b8;
+}
+
+/* 验证码 */
+.captcha-row {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+.captcha-input-wrap {
+  flex: 1;
+}
+.captcha-input {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.captcha-img-btn {
+  flex-shrink: 0;
+  width: 120px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  cursor: pointer;
+  padding: 0;
+  overflow: hidden;
+  transition: border-color 150ms ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.captcha-img-btn:hover:not(:disabled) {
+  border-color: #6366f1;
+}
+.captcha-img-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.captcha-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.captcha-placeholder {
+  font-size: 12px;
+  color: #94a3b8;
+  padding: 12px 0;
 }
 
 /* 错误提示 */

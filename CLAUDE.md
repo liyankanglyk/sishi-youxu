@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-**四时有序 (sishi-youxu)** —— 基于艾森豪威尔矩阵的个人任务管理工具。当前进度：Phase 0~3 后端 + Phase 1 管理端前端完成；Phase 3 用户端前端、Phase 4~6 待开发。
+**四时有序 (sishi-youxu)** —— 基于艾森豪威尔矩阵的个人任务管理工具。当前进度：Phase 0~4 + 4.5 全部完成；Phase 3 用户端前端 + Phase 5~6 待开发。
 
 - **后端**: Python 3.12 + FastAPI + SQLAlchemy 2.0 (async) + MySQL (aiomysql) + Redis
 - **用户端**: Vue 3 + TypeScript + Vite + Pinia + Dexie.js（离线优先）
@@ -231,7 +231,7 @@ Git 分支：`main` `develop` `feat/<name>` `fix/<name>` `hotfix/<name>`
 
 ## 开发阶段（重要）
 
-> 📌 2026-06-27 调整：采用**后端先行**策略 — 先完成所有后端 API，再做管理端前端，最后做用户端前端。
+> 📌 2026-07-04 调整：采用**后端先行**策略 — 先完成所有后端 API，再做管理端前端，最后做用户端前端。
 
 | Phase | 名称 | 状态 |
 |-------|------|------|
@@ -240,12 +240,22 @@ Git 分支：`main` `develop` `feat/<name>` `fix/<name>` `hotfix/<name>`
 | 2 | 用户端核心（后端 API：任务/标签/通知/反馈/同步） | ✅ 已完成 |
 | 3 | 认证与同步（多渠道登录、离线同步） | ⚠️ 后端完成 / 前端 0% |
 | 4 | 管理端增强（敏感词、IP黑名单、公告、登录日志、内容管理） | ✅ 后端完成 / 前端完成 |
+| 4.5 | **安全加固**（传输加密 / 防越权 / 登录锁定 / 图形验证码） | ✅ 已完成 |
 | 5 | 用户端增强（批量、撤销重做、快捷键） | ❌ 未开始 |
-| 6 | 测试与部署（单元/E2E/CI/CD） | ⚠️ 仅 13 条烟雾测试 |
+| 6 | 测试与部署（单元/E2E/CI/CD） | ⚠️ 烟雾 + 部分集成测试 |
 | 7 | 微信小程序扩展 | ⏸ 远期 |
 | 8 | 移动端（Capacitor） | ⏸ 远期 |
 
 Phase 间有依赖，后 Phase 不可抢跑。详见 `docs/01-概览/开发阶段规划.md`。
+
+### 安全加固要点（Phase 4.5）
+
+- **传输加密**：`SecurityHeadersMiddleware` 自动添加 HSTS / X-Content-Type-Options / X-Frame-Options / Referrer-Policy / XSS-Protection
+- **防越权**：所有资源操作 WHERE 条件含 `user_uuid`；JWT claims 含 admin 时强制 DB 查角色；`require_admin` 改用 `RequiredUser`
+- **账户锁定**：用户 5 次 / 管理员 3 次失败 → 锁定 15 分钟（Redis 计数 + DB 持久化双写）
+- **图形验证码**：注册必填 + 用户登录失败 2 次后强制 + 管理员登录必填（新增 `/admin/auth/captcha[verify]`）
+- **User 模型新增字段**：`failed_login_attempts` (INT) + `locked_until` (DATETIME)
+- **数据库迁移**：`backend/scripts/migrate_security_v1.sql`（幂等可重复执行）
 
 ---
 

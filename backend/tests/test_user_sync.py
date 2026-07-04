@@ -14,6 +14,8 @@
 """
 from __future__ import annotations
 
+from tests.conftest import fetch_captcha_for_register  # noqa: E402
+
 import secrets
 from datetime import datetime, timedelta
 from typing import Any
@@ -52,10 +54,13 @@ def _register_user(
     nickname: str | None = None,
     password: str = "Secret123",
 ) -> dict[str, Any]:
+    captcha_id, captcha_solution = fetch_captcha_for_register(client)
     payload = {
         "nickname": nickname or f"u-{secrets.token_hex(3)}",
         "provider": "password",
         "payload": {"identifier": email, "password": password},
+        "captchaId": captcha_id,
+        "captchaSolution": captcha_solution,
     }
     resp = client.post("/api/v1/users", json=payload)
     assert resp.status_code == 200, f"register failed: {resp.status_code} {resp.text}"
@@ -483,5 +488,566 @@ class TestSyncPull:
             # 选了 entity=tag 时，response 可能不含 tasks 键
             assert "tasks" not in data
             assert "tags" in data
+        finally:
+            _purge_user_data([user_uuid])
+
+
+# ---------------------------------------------------------------------------
+# 4. Conflict detection（基于 updated_at）
+# ---------------------------------------------------------------------------
+class TestSyncConflict:
+    """POST /api/v1/sync/push — 客户端提交过旧 updatedAt 应触发 conflict。"""
+
+    def _create_task(self, client, token, *, title: str) -> str:
+        """helper: push 一个 task，返回服务端生成的 uuid。"""
+        op_id = f"op-{secrets.token_hex(6)}"
+        resp = client.post(
+            "/api/v1/sync/push",
+            headers=_bearer(token),
+            json={
+                "ops": [
+                    {
+                        "opId": op_id,
+                        "entity": "task",
+                        "action": "upsert",
+                        "payload": {"title": title, "urgencyLevel": 0, "importanceLevel": 0},
+                    }
+                ]
+            },
+        )
+        _skip_if_500(resp, what="conflict: create task")
+        assert resp.status_code == 200
+        return resp.json()["data"]["results"][0]["serverRecord"]["uuid"]
+
+    def test_update_with_newer_updated_at_succeeds(
+        self, client: TestClient, random_email: str
+    ) -> None:
+        """客户端 updatedAt 晚于服务端 → 正常 applied。"""
+        tokens = _register_user(client, email=random_email)
+        user_uuid = tokens["user"]["uuid"]
+        try:
+            uuid = self._create_task(client, tokens["access_token"], title="baseline")
+
+            # 等 50ms 让服务端 updatedAt 落后于客户端 clientTs
+            import time
+
+            time.sleep(0.05)
+            client_ts = int(datetime.now().timestamp() * 1000) + 60_000  # 60s 后
+            resp = client.post(
+                "/api/v1/sync/push",
+                headers=_bearer(tokens["access_token"]),
+                json={
+                    "ops": [
+                        {
+                            "opId": f"op-{secrets.token_hex(6)}",
+                            "entity": "task",
+                            "action": "upsert",
+                            "payload": {
+                                "uuid": uuid,
+                                "title": "newer-update",
+                                "urgencyLevel": 1,
+                                "importanceLevel": 1,
+                                "updatedAt": datetime.fromtimestamp(client_ts / 1000).isoformat(),
+                            },
+                            "clientTs": client_ts,
+                        }
+                    ]
+                },
+            )
+            _skip_if_500(resp, what="conflict: newer update")
+            assert resp.status_code == 200
+            r = resp.json()["data"]["results"][0]
+            assert r["status"] == "applied"
+            assert r["serverRecord"]["title"] == "newer-update"
+        finally:
+            _purge_user_data([user_uuid])
+
+    def test_update_with_stale_updated_at_returns_conflict(
+        self, client: TestClient, random_email: str
+    ) -> None:
+        """客户端 updatedAt 早于服务端 → 返回 conflict + serverRecord。"""
+        tokens = _register_user(client, email=random_email)
+        user_uuid = tokens["user"]["uuid"]
+        try:
+            uuid = self._create_task(client, tokens["access_token"], title="server-newer")
+
+            # 等 50ms 让服务端 updatedAt 推进
+            import time
+
+            time.sleep(0.05)
+            # clientTs 设在创建之前 — 服务端 updated_at 必然比客户端新
+            stale_ts = datetime(2000, 1, 1, 0, 0, 0).isoformat()
+            resp = client.post(
+                "/api/v1/sync/push",
+                headers=_bearer(tokens["access_token"]),
+                json={
+                    "ops": [
+                        {
+                            "opId": f"op-{secrets.token_hex(6)}",
+                            "entity": "task",
+                            "action": "upsert",
+                            "payload": {
+                                "uuid": uuid,
+                                "title": "client-stale",
+                                "urgencyLevel": 0,
+                                "importanceLevel": 0,
+                                "updatedAt": stale_ts,
+                            },
+                            "clientTs": int(datetime(2000, 1, 1).timestamp() * 1000),
+                        }
+                    ]
+                },
+            )
+            _skip_if_500(resp, what="conflict: stale update")
+            assert resp.status_code == 200
+            r = resp.json()["data"]["results"][0]
+            assert r["status"] == "conflict"
+            assert "serverRecord" in r
+            # serverRecord 应是服务端的最新版本（不是 client-stale）
+            assert r["serverRecord"]["title"] == "server-newer"
+            assert r["serverRecord"]["uuid"] == uuid
+            assert r["serverRecord"]["title"] != "client-stale"
+        finally:
+            _purge_user_data([user_uuid])
+
+
+# ---------------------------------------------------------------------------
+# 5. 跨用户所有权 — push 必须验证实体归属
+# ---------------------------------------------------------------------------
+class TestSyncOwnership:
+    """POST /api/v1/sync/push — 跨用户操作他人的 task/tag/checklist 应被拒。"""
+
+    def test_user_b_cannot_update_user_a_task(
+        self, client: TestClient, random_email: str
+    ) -> None:
+        """A 创建 task → B 用该 uuid 更新 → 应被拒。"""
+        tokens_a = _register_user(client, email=random_email)
+        tokens_b = _register_user(client, email=f"b-{secrets.token_hex(4)}@example.com")
+        try:
+            # A 创建 task
+            op_id = f"op-{secrets.token_hex(6)}"
+            create_resp = client.post(
+                "/api/v1/sync/push",
+                headers=_bearer(tokens_a["access_token"]),
+                json={
+                    "ops": [
+                        {
+                            "opId": op_id,
+                            "entity": "task",
+                            "action": "upsert",
+                            "payload": {"title": "A's task", "urgencyLevel": 0, "importanceLevel": 0},
+                        }
+                    ]
+                },
+            )
+            _skip_if_500(create_resp, what="ownership: A create")
+            a_uuid = create_resp.json()["data"]["results"][0]["serverRecord"]["uuid"]
+
+            # B 试图用 A 的 uuid 更新
+            update_resp = client.post(
+                "/api/v1/sync/push",
+                headers=_bearer(tokens_b["access_token"]),
+                json={
+                    "ops": [
+                        {
+                            "opId": f"op-{secrets.token_hex(6)}",
+                            "entity": "task",
+                            "action": "upsert",
+                            "payload": {
+                                "uuid": a_uuid,
+                                "title": "B hijack",
+                                "urgencyLevel": 1,
+                                "importanceLevel": 1,
+                            },
+                        }
+                    ]
+                },
+            )
+            _skip_if_500(update_resp, what="ownership: B update")
+            assert update_resp.status_code == 200
+            body = update_resp.json()
+            # B 的 op 应被拒（rejected 状态 + reason）
+            r = body["data"]["results"][0]
+            assert r["status"] == "rejected", f"expected rejected, got {r}"
+            assert r.get("reason"), "rejected result should have a reason"
+        finally:
+            _purge_user_data(
+                [tokens_a["user"]["uuid"], tokens_b["user"]["uuid"]]
+            )
+
+    def test_user_b_cannot_delete_user_a_task(
+        self, client: TestClient, random_email: str
+    ) -> None:
+        """A 创建 task → B 删 → 应被拒。"""
+        tokens_a = _register_user(client, email=random_email)
+        tokens_b = _register_user(client, email=f"b-{secrets.token_hex(4)}@example.com")
+        try:
+            op_id = f"op-{secrets.token_hex(6)}"
+            create_resp = client.post(
+                "/api/v1/sync/push",
+                headers=_bearer(tokens_a["access_token"]),
+                json={
+                    "ops": [
+                        {
+                            "opId": op_id,
+                            "entity": "task",
+                            "action": "upsert",
+                            "payload": {"title": "A's task", "urgencyLevel": 0, "importanceLevel": 0},
+                        }
+                    ]
+                },
+            )
+            _skip_if_500(create_resp, what="ownership-delete: A create")
+            a_uuid = create_resp.json()["data"]["results"][0]["serverRecord"]["uuid"]
+
+            # B 删除 A 的 task
+            del_resp = client.post(
+                "/api/v1/sync/push",
+                headers=_bearer(tokens_b["access_token"]),
+                json={
+                    "ops": [
+                        {
+                            "opId": f"op-{secrets.token_hex(6)}",
+                            "entity": "task",
+                            "action": "delete",
+                            "payload": {"uuid": a_uuid},
+                        }
+                    ]
+                },
+            )
+            _skip_if_500(del_resp, what="ownership-delete: B delete")
+            r = del_resp.json()["data"]["results"][0]
+            assert r["status"] == "rejected"
+            assert r.get("reason")
+
+            # 验证 A 的 task 仍可被 A pull 到
+            pull_resp = client.get(
+                "/api/v1/sync/pull",
+                headers=_bearer(tokens_a["access_token"]),
+            )
+            _skip_if_500(pull_resp, what="ownership-delete: A pull")
+            titles = [t["title"] for t in pull_resp.json()["data"]["tasks"]["items"]]
+            assert "A's task" in titles
+        finally:
+            _purge_user_data(
+                [tokens_a["user"]["uuid"], tokens_b["user"]["uuid"]]
+            )
+
+    def test_user_b_cannot_link_taskTag_on_user_a_task(
+        self, client: TestClient, random_email: str
+    ) -> None:
+        """A 创建 task + tag → B 试图 linkTaskTag → 应被拒。"""
+        tokens_a = _register_user(client, email=random_email)
+        tokens_b = _register_user(client, email=f"b-{secrets.token_hex(4)}@example.com")
+        try:
+            # A 创建 task
+            task_op = f"op-{secrets.token_hex(6)}"
+            create_resp = client.post(
+                "/api/v1/sync/push",
+                headers=_bearer(tokens_a["access_token"]),
+                json={
+                    "ops": [
+                        {
+                            "opId": task_op,
+                            "entity": "task",
+                            "action": "upsert",
+                            "payload": {"title": "A task", "urgencyLevel": 0, "importanceLevel": 0},
+                        }
+                    ]
+                },
+            )
+            _skip_if_500(create_resp, what="ownership-taglink: A create task")
+            a_task_uuid = create_resp.json()["data"]["results"][0]["serverRecord"]["uuid"]
+
+            # B 创建自己的 tag
+            tag_op = f"op-{secrets.token_hex(6)}"
+            tag_resp = client.post(
+                "/api/v1/sync/push",
+                headers=_bearer(tokens_b["access_token"]),
+                json={
+                    "ops": [
+                        {
+                            "opId": tag_op,
+                            "entity": "tag",
+                            "action": "upsert",
+                            "payload": {"name": "B tag", "color": "#000000"},
+                        }
+                    ]
+                },
+            )
+            _skip_if_500(tag_resp, what="ownership-taglink: B create tag")
+            b_tag_uuid = tag_resp.json()["data"]["results"][0]["serverRecord"]["uuid"]
+
+            # B 试图把 B 的 tag 关联到 A 的 task
+            link_resp = client.post(
+                "/api/v1/sync/push",
+                headers=_bearer(tokens_b["access_token"]),
+                json={
+                    "ops": [
+                        {
+                            "opId": f"op-{secrets.token_hex(6)}",
+                            "entity": "taskTag",
+                            "action": "upsert",
+                            "payload": {"task_uuid": a_task_uuid, "tag_uuid": b_tag_uuid},
+                        }
+                    ]
+                },
+            )
+            _skip_if_500(link_resp, what="ownership-taglink: B link")
+            r = link_resp.json()["data"]["results"][0]
+            assert r["status"] == "rejected", f"expected rejected, got {r}"
+        finally:
+            _purge_user_data(
+                [tokens_a["user"]["uuid"], tokens_b["user"]["uuid"]]
+            )
+
+    def test_user_b_cannot_create_checklist_on_user_a_task(
+        self, client: TestClient, random_email: str
+    ) -> None:
+        """A 创建 task → B 给该 task 加 checklistItem → 应被拒。"""
+        tokens_a = _register_user(client, email=random_email)
+        tokens_b = _register_user(client, email=f"b-{secrets.token_hex(4)}@example.com")
+        try:
+            op_id = f"op-{secrets.token_hex(6)}"
+            create_resp = client.post(
+                "/api/v1/sync/push",
+                headers=_bearer(tokens_a["access_token"]),
+                json={
+                    "ops": [
+                        {
+                            "opId": op_id,
+                            "entity": "task",
+                            "action": "upsert",
+                            "payload": {"title": "A task", "urgencyLevel": 0, "importanceLevel": 0},
+                        }
+                    ]
+                },
+            )
+            _skip_if_500(create_resp, what="ownership-checklist: A create")
+            a_task_uuid = create_resp.json()["data"]["results"][0]["serverRecord"]["uuid"]
+
+            cl_resp = client.post(
+                "/api/v1/sync/push",
+                headers=_bearer(tokens_b["access_token"]),
+                json={
+                    "ops": [
+                        {
+                            "opId": f"op-{secrets.token_hex(6)}",
+                            "entity": "checklistItems",
+                            "action": "upsert",
+                            "payload": {
+                                "task_uuid": a_task_uuid,
+                                "title": "evil item",
+                                "completed": False,
+                                "sort_order": 0,
+                            },
+                        }
+                    ]
+                },
+            )
+            _skip_if_500(cl_resp, what="ownership-checklist: B add")
+            r = cl_resp.json()["data"]["results"][0]
+            assert r["status"] == "rejected", f"expected rejected, got {r}"
+        finally:
+            _purge_user_data(
+                [tokens_a["user"]["uuid"], tokens_b["user"]["uuid"]]
+            )
+
+
+# ---------------------------------------------------------------------------
+# 6. SAVEPOINT 隔离 — 单条 op 失败不应影响其他 op
+# ---------------------------------------------------------------------------
+class TestSyncSavepoint:
+    """POST /api/v1/sync/push — 每条 op 用独立 SAVEPOINT，单条失败不影响其他。"""
+
+    def test_invalid_op_does_not_block_valid_op_in_same_batch(
+        self, client: TestClient, random_email: str
+    ) -> None:
+        """同一批 op：一条失败（缺字段）+ 一条 valid → 后者应 applied。"""
+        tokens = _register_user(client, email=random_email)
+        user_uuid = tokens["user"]["uuid"]
+        try:
+            # 注意：以下 payload 都是 client side generated uuid + title
+            # 因为 invalid op 的校验在 _apply_op 内部，不会影响 valid op
+            resp = client.post(
+                "/api/v1/sync/push",
+                headers=_bearer(tokens["access_token"]),
+                json={
+                    "ops": [
+                        # 第一条：tag upsert 但缺 name（应被 ValidationException 拒）
+                        {
+                            "opId": f"op-invalid-{secrets.token_hex(4)}",
+                            "entity": "tag",
+                            "action": "upsert",
+                            "payload": {"uuid": "x", "color": "#FFF"},
+                        },
+                        # 第二条：valid task create
+                        {
+                            "opId": f"op-valid-{secrets.token_hex(6)}",
+                            "entity": "task",
+                            "action": "upsert",
+                            "payload": {"title": "still-works", "urgencyLevel": 0, "importanceLevel": 0},
+                        },
+                    ]
+                },
+            )
+            _skip_if_500(resp, what="savepoint: mixed batch")
+            assert resp.status_code == 200
+            results = resp.json()["data"]["results"]
+            assert len(results) == 2
+
+            by_opid = {r["opId"]: r for r in results}
+            invalid_op = by_opid[f"op-invalid-{secrets.token_hex(4)}"] if False else None
+            # 通过 prefix 找 opId
+            invalid_results = [r for r in results if r["opId"].startswith("op-invalid-")]
+            valid_results = [r for r in results if r["opId"].startswith("op-valid-")]
+            assert len(invalid_results) == 1, "should have one invalid op"
+            assert len(valid_results) == 1, "should have one valid op"
+
+            # invalid 应被拒（不是整个请求失败）
+            assert invalid_results[0]["status"] == "rejected"
+            # valid 应正常 applied
+            assert valid_results[0]["status"] == "applied"
+            assert valid_results[0]["serverRecord"]["title"] == "still-works"
+        finally:
+            _purge_user_data([user_uuid])
+
+    def test_batch_with_all_invalid_ops_returns_per_op_rejection(
+        self, client: TestClient, random_email: str
+    ) -> None:
+        """整批全 invalid → 每条独立 rejected，整批 HTTP 仍 200。"""
+        tokens = _register_user(client, email=random_email)
+        user_uuid = tokens["user"]["uuid"]
+        try:
+            resp = client.post(
+                "/api/v1/sync/push",
+                headers=_bearer(tokens["access_token"]),
+                json={
+                    "ops": [
+                        # 缺 name
+                        {
+                            "opId": f"op-{secrets.token_hex(6)}",
+                            "entity": "tag",
+                            "action": "upsert",
+                            "payload": {"uuid": "x", "color": "#FFF"},
+                        },
+                        # taskTag 缺 task_uuid
+                        {
+                            "opId": f"op-{secrets.token_hex(6)}",
+                            "entity": "taskTag",
+                            "action": "upsert",
+                            "payload": {"tag_uuid": "y"},
+                        },
+                    ]
+                },
+            )
+            assert resp.status_code == 200  # 整批 HTTP 成功
+            results = resp.json()["data"]["results"]
+            assert all(r["status"] == "rejected" for r in results), results
+        finally:
+            _purge_user_data([user_uuid])
+
+
+# ---------------------------------------------------------------------------
+# 7. since 验证 — 非法 ISO 应被拒
+# ---------------------------------------------------------------------------
+class TestSyncSinceValidation:
+    """GET /api/v1/sync/pull — since 字段非法字符串应返回 ValidationException。"""
+
+    def test_invalid_since_string_rejected(
+        self, client: TestClient, random_email: str
+    ) -> None:
+        """since='not-a-date' 应返回 HTTP 400 + error envelope（VALIDATION_ERROR）。
+
+        BusinessExceptionMiddleware 把 BusinessException → JSONResponse(http_status=400, fail(...)).
+        """
+        tokens = _register_user(client, email=random_email)
+        user_uuid = tokens["user"]["uuid"]
+        try:
+            resp = client.get(
+                "/api/v1/sync/pull",
+                params={"since": "not-a-date"},
+                headers=_bearer(tokens["access_token"]),
+            )
+            assert resp.status_code == 400
+            body = resp.json()
+            assert body.get("success") is False
+            err = body.get("error", {})
+            assert err.get("code") == "VALIDATION_ERROR"
+        finally:
+            _purge_user_data([user_uuid])
+
+    def test_valid_iso_since_accepted(
+        self, client: TestClient, random_email: str
+    ) -> None:
+        """since=合法 ISO 字符串应被接受。"""
+        tokens = _register_user(client, email=random_email)
+        user_uuid = tokens["user"]["uuid"]
+        try:
+            future = (datetime.now() + timedelta(hours=1)).isoformat()
+            resp = client.get(
+                "/api/v1/sync/pull",
+                params={"since": future},
+                headers=_bearer(tokens["access_token"]),
+            )
+            _skip_if_500(resp, what="since-validation: valid ISO")
+            assert resp.status_code == 200
+            assert resp.json().get("success") is True
+        finally:
+            _purge_user_data([user_uuid])
+
+    def test_pull_returns_deleted_tasks_in_deleted_array(
+        self, client: TestClient, random_email: str
+    ) -> None:
+        """修复 A1：deleted_at 非空的 task 应出现在 deleted[] 数组里（不是空数组）。"""
+        tokens = _register_user(client, email=random_email)
+        user_uuid = tokens["user"]["uuid"]
+        try:
+            # push 一个 task
+            create_resp = client.post(
+                "/api/v1/sync/push",
+                headers=_bearer(tokens["access_token"]),
+                json={
+                    "ops": [
+                        {
+                            "opId": f"op-{secrets.token_hex(6)}",
+                            "entity": "task",
+                            "action": "upsert",
+                            "payload": {"title": "to-be-deleted", "urgencyLevel": 0, "importanceLevel": 0},
+                        }
+                    ]
+                },
+            )
+            _skip_if_500(create_resp, what="deleted-array: create")
+            uuid = create_resp.json()["data"]["results"][0]["serverRecord"]["uuid"]
+
+            # 删除
+            del_resp = client.post(
+                "/api/v1/sync/push",
+                headers=_bearer(tokens["access_token"]),
+                json={
+                    "ops": [
+                        {
+                            "opId": f"op-{secrets.token_hex(6)}",
+                            "entity": "task",
+                            "action": "delete",
+                            "payload": {"uuid": uuid},
+                        }
+                    ]
+                },
+            )
+            _skip_if_500(del_resp, what="deleted-array: delete")
+
+            # pull 应能看到 deleted[] 包含该 uuid
+            pull_resp = client.get(
+                "/api/v1/sync/pull",
+                headers=_bearer(tokens["access_token"]),
+            )
+            _skip_if_500(pull_resp, what="deleted-array: pull")
+            deleted = pull_resp.json()["data"]["tasks"]["deleted"]
+            assert uuid in deleted, f"deleted uuid should appear in pull.deleted[]: {deleted}"
+            # 同时不应出现在 items
+            items_uuids = [t["uuid"] for t in pull_resp.json()["data"]["tasks"]["items"]]
+            assert uuid not in items_uuids
         finally:
             _purge_user_data([user_uuid])

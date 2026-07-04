@@ -121,6 +121,26 @@ export const useTaskStore = defineStore('task', () => {
   const createUrgencyLevel = ref(0)
   const createImportanceLevel = ref(0)
   const celebrationTitle = ref<string | null>(null)
+  const celebrationOrigin = ref<{ x: number; y: number } | null>(null)
+
+  /** 今日已完成任务数 */
+  const todayCompletedCount = computed(() => {
+    const today = new Date().toISOString().slice(0, 10)
+    return serverTasks.value.filter(t => t.completed && t.completedAt?.startsWith(today)).length
+  })
+
+  /** 完成强度等级 1-5，基于今日完成数逐级升级 */
+  const completionIntensity = computed(() => {
+    const n = todayCompletedCount.value
+    if (n >= 25) return 5
+    if (n >= 10) return 4
+    if (n >= 5) return 3
+    if (n >= 3) return 2
+    return 1
+  })
+
+  /** 最近完成任务的象限（用于粒子色板选择） */
+  const lastCompletedQuadrant = ref<string | null>(null)
 
   // 多选
   const selectedTaskIds = ref<string[]>([])
@@ -364,7 +384,8 @@ export const useTaskStore = defineStore('task', () => {
 
     if (!wasCompleted) {
       celebrationTitle.value = task.title
-      setTimeout(() => { celebrationTitle.value = null }, 2000)
+      lastCompletedQuadrant.value = getQuadrant(task.urgencyLevel, task.importanceLevel)
+      setTimeout(() => { celebrationTitle.value = null }, 2200)
     }
 
     pushHistory({
@@ -533,7 +554,7 @@ export const useTaskStore = defineStore('task', () => {
     serverTasks, tags, loading, error,
     searchQuery, tagFilter, dueFilter, selectedQuadrant, viewDensity, isListOpen,
     editingTaskUuid, isCreating, createUrgencyLevel, createImportanceLevel,
-    celebrationTitle,
+    celebrationTitle, celebrationOrigin, todayCompletedCount, completionIntensity, lastCompletedQuadrant,
     selectedTaskIds, isSelectMode,
     undoStack, redoStack,
     filteredTasks, groupedTasks, completedTasks,

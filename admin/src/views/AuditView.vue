@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { adminApi, type AuditEntry } from '@/api/admin'
 
@@ -71,6 +71,20 @@ function formatDetail(detail: Record<string, unknown> | null | undefined) {
   if (!detail || Object.keys(detail).length === 0) return '无'
   return JSON.stringify(detail, null, 2)
 }
+
+// 把 detail dict 转成「字段：值」表格行；值若是对象就再展开一层
+const detailRows = computed(() => {
+  const detail = detailEntry.value?.detail
+  if (!detail || typeof detail !== 'object') return []
+  return Object.entries(detail).map(([k, v]) => ({
+    key: k,
+    value: v === null || v === undefined
+      ? ''
+      : typeof v === 'object'
+        ? JSON.stringify(v)
+        : String(v),
+  }))
+})
 
 const resourceTypeLabels: Record<string, string> = {
   user: '用户',
@@ -171,6 +185,18 @@ onMounted(fetch)
           <span v-else class="muted-text">-</span>
         </template>
       </el-table-column>
+      <el-table-column label="方法" width="70">
+        <template #default="{ row }">
+          <el-tag v-if="row.requestMethod" size="small" type="info">{{ row.requestMethod }}</el-tag>
+          <span v-else class="muted-text">-</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="请求路径" min-width="180" show-overflow-tooltip>
+        <template #default="{ row }">
+          <span v-if="row.requestPath" class="path-text">{{ row.requestPath }}</span>
+          <span v-else class="muted-text">-</span>
+        </template>
+      </el-table-column>
     </el-table>
 
     <el-pagination
@@ -189,14 +215,29 @@ onMounted(fetch)
         <el-descriptions :column="1" border>
           <el-descriptions-item label="操作时间">{{ formatTime(detailEntry.createdAt) }}</el-descriptions-item>
           <el-descriptions-item label="操作类型">{{ detailEntry.actionLabel || detailEntry.action }}</el-descriptions-item>
-          <el-descriptions-item label="原始 Action">{{ detailEntry.action }}</el-descriptions-item>
           <el-descriptions-item label="资源类型">{{ resourceTypeLabels[detailEntry.resourceType] || detailEntry.resourceType }}</el-descriptions-item>
           <el-descriptions-item label="资源 UUID">{{ detailEntry.resourceUuid || '-' }}</el-descriptions-item>
           <el-descriptions-item label="操作人">{{ detailEntry.userNickname || detailEntry.userUuid || '-' }}</el-descriptions-item>
           <el-descriptions-item label="IP 地址">{{ detailEntry.ipAddress || '-' }}</el-descriptions-item>
           <el-descriptions-item label="User-Agent">{{ (detailEntry as any).userAgent || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="请求方法">{{ detailEntry?.requestMethod || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="请求路径">{{ detailEntry?.requestPath || '-' }}</el-descriptions-item>
           <el-descriptions-item label="操作详情">
-            <pre class="detail-json">{{ formatDetail(detailEntry.detail) }}</pre>
+            <div v-if="detailRows.length === 0" class="muted-text">无</div>
+            <table v-else class="detail-table">
+              <thead>
+                <tr>
+                  <th>字段</th>
+                  <th>值</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in detailRows" :key="row.key">
+                  <td class="detail-key">{{ row.key }}</td>
+                  <td class="detail-value">{{ row.value }}</td>
+                </tr>
+              </tbody>
+            </table>
           </el-descriptions-item>
         </el-descriptions>
       </template>
@@ -214,8 +255,9 @@ onMounted(fetch)
   margin-bottom: 1rem;
   flex-wrap: wrap;
 }
-.uuid-text { color: #94a3b8; font-family: monospace; font-size: 12px; }
-.muted-text { color: #cbd5e1; }
+.uuid-text { color: #64748b; font-family: monospace; font-size: 12px; }
+.path-text { font-family: monospace; font-size: 12px; color: #334155; }
+.muted-text { color: #94a3b8; }
 .detail-json {
   margin: 0;
   padding: 8px 12px;
@@ -227,5 +269,32 @@ onMounted(fetch)
   overflow-y: auto;
   white-space: pre-wrap;
   word-break: break-all;
+}
+.detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.detail-table th,
+.detail-table td {
+  border: 1px solid #e2e8f0;
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+  word-break: break-all;
+}
+.detail-table th {
+  background: #f1f5f9;
+  color: #475569;
+  font-weight: 600;
+  width: 100px;
+}
+.detail-key {
+  font-family: monospace;
+  color: #475569;
+  white-space: nowrap;
+}
+.detail-value {
+  color: #0f172a;
 }
 </style>

@@ -39,6 +39,7 @@ export interface TaskOut {
   tags: string[] | { uuid: string; name: string; color: string }[]
   checklistTotal: number
   checklistCompleted: number
+  checklistItems?: ChecklistItem[]
   completed: boolean
   completedAt: string | null
   sortOrder: number

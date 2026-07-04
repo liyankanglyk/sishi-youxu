@@ -444,7 +444,7 @@ onMounted(fetch)
           >
             {{ tag.name }}
           </el-tag>
-          <span v-if="!row.tags?.length" style="color:#94a3b8">—</span>
+          <span v-if="!row.tags?.length" style="color:#64748b">—</span>
         </template>
       </el-table-column>
       <el-table-column prop="dueDate" label="截止日期" width="110">

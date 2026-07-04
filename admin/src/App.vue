@@ -51,7 +51,7 @@ const isLoginPage = computed(() => route.name === 'adminLogin')
 
 body {
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: 15px;
   color: var(--color-text);
   background: var(--color-bg);
   min-height: 100vh;
@@ -109,7 +109,7 @@ body {
   background: #f8fafc !important;
   color: var(--color-text-secondary);
   font-weight: 600;
-  font-size: 12px;
+  font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   border-bottom: 2px solid var(--color-border) !important;

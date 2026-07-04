@@ -32,15 +32,41 @@ export interface TokenResponse {
   is_new_user?: boolean
 }
 
+export interface CaptchaInfo {
+  captcha_id: string
+  image: string
+  solution?: string  // 仅 dev/test 环境返回
+}
+
 export const authApi = {
   /** 账号密码 / 短信 / 邮箱 登录 */
-  login(provider: string, payload: Record<string, unknown>) {
-    return apiClient.post<TokenResponse>('/auth/tokens', { provider, payload })
+  login(
+    provider: string,
+    payload: Record<string, unknown>,
+    captcha?: { captchaId: string; captchaSolution: string },
+  ) {
+    return apiClient.post<TokenResponse>('/auth/tokens', {
+      provider,
+      payload,
+      captchaId: captcha?.captchaId,
+      captchaSolution: captcha?.captchaSolution,
+    })
   },
 
   /** 注册新用户 */
-  register(nickname: string, provider: string, payload: Record<string, unknown>) {
-    return apiClient.post<TokenResponse>('/users', { nickname, provider, payload })
+  register(
+    nickname: string,
+    provider: string,
+    payload: Record<string, unknown>,
+    captcha?: { captchaId: string; captchaSolution: string },
+  ) {
+    return apiClient.post<TokenResponse>('/users', {
+      nickname,
+      provider,
+      payload,
+      captchaId: captcha?.captchaId,
+      captchaSolution: captcha?.captchaSolution,
+    })
   },
 
   /** 刷新 token */
@@ -79,7 +105,8 @@ export const authApi = {
 
   /** 获取图形验证码 */
   getCaptcha() {
-    return apiClient.get('/auth/captcha')
+    // apiClient 拦截器已自动解包 {success, data} → 返回值即内层 data
+    return apiClient.get<CaptchaInfo>('/auth/captcha')
   },
 
   /** 校验图形验证码 */

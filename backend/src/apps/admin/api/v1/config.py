@@ -28,6 +28,8 @@ def _service(db: DbSession, request: Request | None = None) -> AdminService:
     if request:
         svc._request_ip = request.client.host if request.client else None
         svc._request_ua = request.headers.get("User-Agent")
+        svc._request_method = request.method
+        svc._request_path = request.url.path
     return svc
 
 
@@ -198,6 +200,8 @@ async def create_announcement(
     if request:
         svc._request_ip = request.client.host if request.client else None
         svc._request_ua = request.headers.get("User-Agent")
+        svc._request_method = request.method
+        svc._request_path = request.url.path
     start_time = None
     end_time = None
     if body.startTime:
@@ -237,6 +241,8 @@ async def update_announcement(
     if request:
         svc._request_ip = request.client.host if request.client else None
         svc._request_ua = request.headers.get("User-Agent")
+        svc._request_method = request.method
+        svc._request_path = request.url.path
     start_time = None
     end_time = None
     if body.startTime:
@@ -276,6 +282,8 @@ async def delete_announcement(
     if request:
         svc._request_ip = request.client.host if request.client else None
         svc._request_ua = request.headers.get("User-Agent")
+        svc._request_method = request.method
+        svc._request_path = request.url.path
     await svc.delete_announcement(uuid, admin_uuid=admin["uuid"])
     await db.commit()
     return ok({"deleted": True})

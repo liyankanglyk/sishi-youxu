@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onActivated } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { adminApi, type AdminUser } from '@/api/admin'
@@ -55,6 +55,10 @@ async function handleEnable(uuid: string) {
 const statusTagType = (s: string) => s === 'active' ? 'success' : s === 'disabled' ? 'warning' : 'danger'
 
 onMounted(fetchUsers)
+// 修复 keep-alive 数据陈旧：从详情页跳回时（如做了禁用/启用/编辑）重新拉取最新数据
+onActivated(() => {
+  fetchUsers()
+})
 </script>
 
 <template>

@@ -185,7 +185,7 @@ async function handleLogout() {
 }
 
 .brand-tag {
-  font-size: 11px;
+  font-size: 12px;
   color: #64748b;
   font-weight: 500;
   letter-spacing: 0.05em;
@@ -205,7 +205,7 @@ async function handleLogout() {
   margin-bottom: 2px;
   height: 42px;
   line-height: 42px;
-  font-size: 13.5px;
+  font-size: 14px;
   transition: all 150ms ease;
 }
 
@@ -242,7 +242,7 @@ async function handleLogout() {
   padding-left: 60px !important;
   height: 36px;
   line-height: 36px;
-  font-size: 13px;
+  font-size: 14px;
   color: #94a3b8;
 }
 
@@ -286,7 +286,7 @@ async function handleLogout() {
 }
 
 .sf-role {
-  font-size: 11px;
+  font-size: 12px;
   color: #64748b;
 }
 
@@ -313,12 +313,12 @@ async function handleLogout() {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13.5px;
-  color: #94a3b8;
+  font-size: 14px;
+  color: #64748b;
 }
 
 .hb-divider {
-  color: #cbd5e1;
+  color: #94a3b8;
 }
 
 .hb-current {

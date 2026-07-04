@@ -12,6 +12,8 @@
 """
 from __future__ import annotations
 
+from tests.conftest import fetch_captcha_for_register  # noqa: E402
+
 import secrets
 from typing import Any
 
@@ -49,10 +51,13 @@ def _register_user(
     nickname: str | None = None,
     password: str = "Secret123",
 ) -> dict[str, Any]:
+    captcha_id, captcha_solution = fetch_captcha_for_register(client)
     payload = {
         "nickname": nickname or f"u-{secrets.token_hex(3)}",
         "provider": "password",
         "payload": {"identifier": email, "password": password},
+        "captchaId": captcha_id,
+        "captchaSolution": captcha_solution,
     }
     resp = client.post("/api/v1/users", json=payload)
     assert resp.status_code == 200, f"register failed: {resp.status_code} {resp.text}"

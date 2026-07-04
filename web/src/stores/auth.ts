@@ -57,8 +57,12 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // ── 操作方法 ──
-  async function login(provider: string, payload: Record<string, unknown>) {
-    const { data } = await authApi.login(provider, payload)
+  async function login(
+    provider: string,
+    payload: Record<string, unknown>,
+    captcha?: { captchaId: string; captchaSolution: string },
+  ) {
+    const { data } = await authApi.login(provider, payload, captcha)
     user.value = data.user
     accessToken.value = data.access_token
     refreshToken.value = data.refresh_token
@@ -76,8 +80,13 @@ export const useAuthStore = defineStore('auth', () => {
     return data
   }
 
-  async function register(nickname: string, provider: string, payload: Record<string, unknown>) {
-    const { data } = await authApi.register(nickname, provider, payload)
+  async function register(
+    nickname: string,
+    provider: string,
+    payload: Record<string, unknown>,
+    captcha?: { captchaId: string; captchaSolution: string },
+  ) {
+    const { data } = await authApi.register(nickname, provider, payload, captcha)
     user.value = data.user
     accessToken.value = data.access_token
     refreshToken.value = data.refresh_token

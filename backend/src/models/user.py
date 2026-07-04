@@ -4,7 +4,7 @@ from __future__ import annotations
 import enum
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, String
+from sqlalchemy import DateTime, Enum, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.models.base import Base, SoftDeleteMixin, TimestampMixin, UUIDMixin
@@ -39,3 +39,5 @@ class User(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
         default=UserStatus.active,
     )
     locale: Mapped[str] = mapped_column(String(10), nullable=False, default="zh-CN")
+    failed_login_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

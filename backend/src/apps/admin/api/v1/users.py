@@ -1,4 +1,4 @@
-"""管理后台用户管理端点 —— Phase 1 实现。"""
+﻿"""管理后台用户管理端点 —— Phase 1 实现。"""
 
 from __future__ import annotations
 
@@ -21,7 +21,16 @@ def _service(db: DbSession, request: Request | None = None) -> AdminService:
     if request:
         svc._request_ip = request.client.host if request.client else None
         svc._request_ua = request.headers.get("User-Agent")
+        svc._request_method = request.method
+        svc._request_path = request.url.path
     return svc
+
+
+# =============================================================================
+# ⚠️ 重要：所有「固定路径」（/me /batch /export）必须排在「/{uuid}」之前。
+# FastAPI 按声明顺序匹配，/{uuid} 会吞掉这些同名段
+# （修复 P0 路由顺序 bug）
+# =============================================================================
 
 
 @router.get("", summary="用户列表")
@@ -40,6 +49,41 @@ async def admin_list_users(
     result = await svc.list_users(page=page, page_size=pageSize, keyword=keyword,
                                    status=status, role=role, start_time=startTime, end_time=endTime)
     return ok(result)
+
+
+@router.get("/me", summary="当前管理员信息")
+async def admin_get_me(admin: RequireAdmin) -> dict:
+    return ok(admin)
+
+
+@router.post("/batch", summary="批量操作")
+async def admin_batch_users(
+    body: AdminUserBatchRequest, db: DbSession, admin: RequireAdmin, request: Request
+) -> dict:
+    svc = _service(db, request)
+    result = await svc.batch_users(
+        action=body.action,
+        uuids=body.uuids,
+        admin_uuid=admin["uuid"],
+    )
+    await db.commit()
+    return ok(result)
+
+
+@router.get("/export", summary="导出用户 CSV")
+async def admin_export_users(db: DbSession, _admin: RequireAdmin) -> Response:
+    svc = _service(db)
+    csv_data = await svc.export_users()
+    return Response(
+        content=csv_data,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": "attachment; filename=users.csv"},
+    )
+
+
+# =============================================================================
+# /{uuid} 形式（必须在固定路径之后）
+# =============================================================================
 
 
 @router.get("/{uuid}", summary="用户详情")
@@ -99,37 +143,3 @@ async def admin_reset_user_password(
     result = await svc.reset_user_password(uuid, body.newPassword, admin_uuid=admin["uuid"])
     await db.commit()
     return ok(result)
-
-
-@router.post("/batch", summary="批量操作")
-async def admin_batch_users(
-    body: AdminUserBatchRequest, db: DbSession, admin: RequireAdmin, request: Request
-) -> dict:
-    svc = _service(db, request)
-    result = await svc.batch_users(
-        action=body.action,
-        uuids=body.uuids,
-        admin_uuid=admin["uuid"],
-    )
-    await db.commit()
-    return ok(result)
-
-
-@router.get("/export", summary="导出用户 CSV")
-async def admin_export_users(db: DbSession, _admin: RequireAdmin) -> Response:
-    svc = _service(db)
-    csv_data = await svc.export_users()
-    return Response(
-        content=csv_data,
-        media_type="text/csv; charset=utf-8",
-        headers={"Content-Disposition": "attachment; filename=users.csv"},
-    )
-
-
-# ── 当前管理员相关端点 ──
-me_router = APIRouter(prefix="/admin/users", tags=["admin-users"])
-
-
-@me_router.get("/me", summary="当前管理员信息")
-async def admin_get_me(admin: RequireAdmin) -> dict:
-    return ok(admin)

@@ -44,6 +44,8 @@ export interface AuditEntry {
   resourceUuid: string | null
   ipAddress: string | null
   userAgent?: string | null
+  requestMethod?: string | null
+  requestPath?: string | null
   detail: Record<string, unknown> | null
   createdAt: string
 }
@@ -64,9 +66,13 @@ export interface SystemConfig {
 export interface LoginLogEntry {
   uuid: string
   userUuid: string | null
+  userNickname?: string | null
   provider: string
   ipAddress: string | null
   userAgent?: string | null
+  requestMethod?: string | null
+  requestPath?: string | null
+  requestBody?: string | null
   loginStatus: 'success' | 'failed'
   failReason?: string | null
   createdAt: string
@@ -158,10 +164,29 @@ export interface AdminTagDetail {
 
 // ── API 方法 ──
 
+export interface CaptchaInfo {
+  captcha_id: string
+  image: string
+  solution?: string  // 仅 dev/test 环境返回
+}
+
 export const adminApi = {
   // 认证相关
-  login(username: string, password: string) {
-    return apiClient.post('/admin/auth/tokens', { username, password })
+  login(
+    username: string,
+    password: string,
+    captcha?: { captchaId: string; captchaSolution: string },
+  ) {
+    return apiClient.post('/admin/auth/tokens', {
+      username,
+      password,
+      captchaId: captcha?.captchaId,
+      captchaSolution: captcha?.captchaSolution,
+    })
+  },
+  getAdminCaptcha() {
+    // 拦截器已解壳 → 返回值即内层 captcha 数据
+    return apiClient.get<CaptchaInfo>('/admin/auth/captcha')
   },
   refresh(refreshToken: string) {
     return apiClient.post('/admin/auth/tokens/refresh', { refresh_token: refreshToken })

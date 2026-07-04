@@ -38,10 +38,16 @@ from src.core.exceptions import (
 from src.core.logger import get_logger
 from src.core.redis import build_key, get_redis, getdel
 from src.core.security import (
+    LOCKOUT_TTL,
+    USER_MAX_FAILURES,
+    check_login_locked,
+    check_ip_locked,
     create_access_token,
     create_refresh_token,
     decode_token,
     hash_password,
+    record_login_failure,
+    reset_login_failures,
     sha256_hex,
     store_ws_ticket,
     verify_password,
@@ -194,8 +200,49 @@ class AuthService:
         self,
         provider: Literal["password", "phone_sms", "email_code"],
         payload: dict[str, Any],
+        *,
+        captcha_id: str | None = None,
+        captcha_solution: str | None = None,
     ) -> dict[str, Any]:
-        """登录分发。"""
+        """登录分发。
+
+        安全加固：
+        - 登录失败 >= 2 次 → 必须提供图形验证码
+        - 连续失败 5 次 → 锁定 15 分钟
+        """
+        # ── 安全加固：提取 identifier 并检查锁定 ──
+        identifier = self._extract_identifier(provider, payload)
+        if identifier:
+            if await check_login_locked(identifier, is_admin=False):
+                raise BusinessException(
+                    f"账号已被临时锁定，请{LOCKOUT_TTL // 60}分钟后再试",
+                    code="AUTH_ACCOUNT_LOCKED",
+                    http_status=423,
+                )
+            # IP 维度锁定检查
+            ip = getattr(self, "_request_ip", None)
+            if ip and await check_ip_locked(ip):
+                raise BusinessException(
+                    "请求过于频繁，请稍后再试",
+                    code="RATE_LIMITED",
+                    http_status=429,
+                )
+
+            # ── 条件 CAPTCHA：失败 >= 2 次必须验证 ──
+            if await self._require_captcha(identifier):
+                if not captcha_id or not captcha_solution:
+                    raise BusinessException(
+                        "登录失败次数过多，请输入图形验证码",
+                        code="AUTH_CAPTCHA_REQUIRED",
+                        http_status=400,
+                    )
+                if not await self.verify_captcha(captcha_id, captcha_solution):
+                    raise BusinessException(
+                        "图形验证码错误或已过期",
+                        code="AUTH_CAPTCHA_INVALID",
+                        http_status=400,
+                    )
+
         if provider == "password":
             user = await self._login_password(payload)
         elif provider == "phone_sms":
@@ -217,6 +264,8 @@ class AuthService:
                 login_status=LoginStatus.failed,
                 fail_reason=e.message,
             )
+            if identifier:
+                await record_login_failure(identifier, is_admin=False)
             raise
         tokens = await self._issue_token_pair(user)
         await self._record_login_log(
@@ -224,6 +273,9 @@ class AuthService:
             provider=provider,
             login_status=LoginStatus.success,
         )
+        # 登录成功 → 清除失败计数
+        if identifier:
+            await reset_login_failures(identifier)
         return {
             **tokens,
             "user": self._user_to_out(user),
@@ -248,6 +300,7 @@ class AuthService:
                 login_status=LoginStatus.failed,
                 fail_reason="账号或密码错误",
             )
+            await record_login_failure(identifier, is_admin=False, ip=getattr(self, "_request_ip", None))
             raise UnauthorizedException(
                 "账号或密码错误",
                 code=AuthErrorCode.INVALID_CREDENTIALS,
@@ -260,6 +313,7 @@ class AuthService:
                 login_status=LoginStatus.failed,
                 fail_reason="账号或密码错误",
             )
+            await record_login_failure(identifier, is_admin=False, ip=getattr(self, "_request_ip", None))
             raise UnauthorizedException(
                 "账号或密码错误",
                 code=AuthErrorCode.INVALID_CREDENTIALS,
@@ -283,6 +337,7 @@ class AuthService:
                 login_status=LoginStatus.failed,
                 fail_reason="该手机号未注册",
             )
+            await record_login_failure(phone, is_admin=False, ip=getattr(self, "_request_ip", None))
             raise UnauthorizedException(
                 "该手机号未注册",
                 code=AuthErrorCode.INVALID_CREDENTIALS,
@@ -295,6 +350,7 @@ class AuthService:
                 login_status=LoginStatus.failed,
                 fail_reason="账号不存在",
             )
+            await record_login_failure(phone, is_admin=False, ip=getattr(self, "_request_ip", None))
             raise UnauthorizedException(
                 "账号不存在",
                 code=AuthErrorCode.USER_NOT_FOUND,
@@ -318,6 +374,7 @@ class AuthService:
                 login_status=LoginStatus.failed,
                 fail_reason="该邮箱未注册",
             )
+            await record_login_failure(email.lower(), is_admin=False, ip=getattr(self, "_request_ip", None))
             raise UnauthorizedException(
                 "该邮箱未注册",
                 code=AuthErrorCode.INVALID_CREDENTIALS,
@@ -330,6 +387,7 @@ class AuthService:
                 login_status=LoginStatus.failed,
                 fail_reason="账号不存在",
             )
+            await record_login_failure(email.lower(), is_admin=False, ip=getattr(self, "_request_ip", None))
             raise UnauthorizedException(
                 "账号不存在",
                 code=AuthErrorCode.USER_NOT_FOUND,
@@ -345,13 +403,31 @@ class AuthService:
         nickname: str,
         provider: Literal["password", "phone_sms", "email_code"],
         payload: dict[str, Any],
+        *,
+        captcha_id: str = "",
+        captcha_solution: str = "",
     ) -> dict[str, Any]:
-        """注册 + 自动登录。"""
+        """注册 + 自动登录。
+
+        安全加固：注册前必须校验图形验证码。
+        """
         nickname = (nickname or "").strip()
         if len(nickname) < 2 or len(nickname) > 20:
             raise ValidationException(
                 "昵称长度需在 2-20 字符之间",
                 code=AuthErrorCode.VALIDATION_ERROR,
+            )
+
+        # ── 安全加固：注册必须校验图形验证码 ──
+        if not captcha_id or not captcha_solution:
+            raise ValidationException(
+                "图形验证码不能为空", code="AUTH_CAPTCHA_REQUIRED"
+            )
+        if not await self.verify_captcha(captcha_id, captcha_solution):
+            raise BusinessException(
+                "图形验证码错误或已过期",
+                code="AUTH_CAPTCHA_INVALID",
+                http_status=400,
             )
 
         if provider == "password":
@@ -592,7 +668,11 @@ class AuthService:
     # =======================================================================
 
     async def generate_captcha(self) -> dict[str, Any]:
-        """生成图形验证码。答案存 Redis（5 分钟），返回 captcha_id + 图片。"""
+        """生成图形验证码。答案存 Redis（5 分钟），返回 captcha_id + 图片。
+
+        安全加固：仅在 dev/test 环境返回 solution 字段，便于自动化测试；
+        生产环境不返回，必须从图片识别。
+        """
         from src.utils.captcha import captcha_data_uri
 
         answer, svg_b64 = generate_captcha()
@@ -604,10 +684,14 @@ class AuthService:
             sha256_hex(answer.upper()),
             ex=_CAPTCHA_TTL,
         )
-        return {
+        result: dict[str, Any] = {
             "captcha_id": captcha_id,
             "image": captcha_data_uri(svg_b64),
         }
+        # dev/test 环境返回明文答案，方便自动化测试和联调
+        if settings.APP_ENV in {"dev", "test"}:
+            result["solution"] = answer.upper()
+        return result
 
     async def verify_captcha(self, captcha_id: str, solution: str) -> bool:
         if not captcha_id or not solution:
@@ -855,6 +939,31 @@ class AuthService:
             )
 
     @staticmethod
+    def _extract_identifier(provider: str, payload: dict[str, Any]) -> str:
+        """从登录 payload 中提取用于锁定跟踪的标识符。"""
+        if provider == "password":
+            return (payload.get("identifier") or "").strip()
+        elif provider == "phone_sms":
+            return (payload.get("phone") or "").strip()
+        elif provider == "email_code":
+            return (payload.get("email") or "").strip().lower()
+        return ""
+
+    async def _require_captcha(self, identifier: str) -> bool:
+        """检查该 identifier 是否需要图形验证码（失败次数 >= 2）。"""
+        from src.core.redis import build_key, get_redis
+
+        try:
+            redis = get_redis()
+            fail_key = build_key("login_fail", identifier)
+            count_raw = await redis.get(fail_key)
+            if count_raw is not None and int(count_raw) >= 2:
+                return True
+        except Exception:
+            pass
+        return False
+
+    @staticmethod
     def _user_to_out(user: User) -> dict[str, Any]:
         return {
             "uuid": user.uuid,
@@ -883,7 +992,8 @@ class AuthService:
         from sqlalchemy import create_engine
         from sqlalchemy.dialects.mysql import insert as mysql_insert
 
-        sync_url = settings.DATABASE_URL.replace("mysql+aiomysql", "mysql+pymysql")
+        import re
+        sync_url = re.sub(r"mysql\+(?:aiomysql|asyncmy)", "mysql+pymysql", settings.DATABASE_URL)
         engine = create_engine(sync_url, pool_pre_ping=True)
 
         with engine.begin() as conn:

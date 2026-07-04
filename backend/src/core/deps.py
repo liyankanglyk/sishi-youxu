@@ -80,6 +80,32 @@ async def _resolve_actor(
             )
         return dict(_GUEST_ACTOR)
 
+    # ── 安全加固：JWT claims 声称 admin/super_admin 时强制查 DB 验证角色 ──
+    # 防止通过篡改 JWT payload 提升权限（纵深防御：即使 JWT 有签名也做二次校验）
+    if role in {"admin", "super_admin"}:
+        stmt = select(User.uuid, User.role, User.status).where(
+            User.uuid == user_uuid,
+            User.deleted_at.is_(None),
+        )
+        row = (await db.execute(stmt)).first()
+        if row is None:
+            raise UnauthorizedException(
+                "用户不存在", code="USER_NOT_FOUND"
+            )
+        if row.status != UserStatus.active:
+            raise UnauthorizedException(
+                "账号已被禁用或封禁",
+                code="AUTH_USER_DISABLED",
+            )
+        db_role = row.role.value if hasattr(row.role, "value") else str(row.role)
+        if db_role not in {"admin", "super_admin"}:
+            raise UnauthorizedException(
+                "token 权限声明与数据库不一致",
+                code="AUTH_TOKEN_INVALID",
+            )
+        # 角色校验通过，使用 DB 中的 role（比 JWT claims 更可信）
+        role = db_role
+
     # 强制鉴权时才查库（轻量查询，只取 uuid/role/status）
     if required:
         stmt = select(User.uuid, User.role, User.status).where(
@@ -179,8 +205,12 @@ async def get_ws_user(
 WsUser = Annotated[dict, Depends(get_ws_user)]
 
 
-async def require_admin(current: CurrentUser) -> dict:
-    """管理员端点的骨架守卫。"""
+async def require_admin(current: RequiredUser) -> dict:
+    """管理员端点守卫。
+
+    安全加固：使用 RequiredUser（强制鉴权），确保无 token 时返回 401
+    而非 guest actor。同时校验角色必须是 admin 或 super_admin。
+    """
     if current.get("role") not in {"admin", "super_admin"}:
         raise UnauthorizedException("需要管理员权限", code="AUTH_ADMIN_REQUIRED")
     return current

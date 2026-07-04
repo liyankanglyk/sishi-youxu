@@ -1,4 +1,4 @@
-"""将管理后台各 router 聚合到同一个 APIRouter 下。"""
+﻿"""将管理后台各 router 聚合到同一个 APIRouter 下。"""
 from fastapi import APIRouter
 
 from src.apps.admin.api.v1 import audit, auth, config, content, dashboard, feedback, users
@@ -6,7 +6,6 @@ from src.apps.admin.api.v1 import audit, auth, config, content, dashboard, feedb
 api_router = APIRouter()
 api_router.include_router(auth.router)
 api_router.include_router(users.router)
-api_router.include_router(users.me_router)
 api_router.include_router(dashboard.router)
 api_router.include_router(audit.router)
 api_router.include_router(audit.login_log_router)

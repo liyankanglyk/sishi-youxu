@@ -14,6 +14,7 @@ from sqlalchemy import and_, delete, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.exceptions import (
+    BusinessException,
     ConflictException,
     NotFoundException,
     UnauthorizedException,
@@ -21,9 +22,14 @@ from src.core.exceptions import (
 )
 from src.core.logger import get_logger
 from src.core.security import (
+    ADMIN_MAX_FAILURES,
+    LOCKOUT_TTL,
+    check_login_locked,
     create_access_token,
     create_refresh_token,
     hash_password,
+    record_login_failure,
+    reset_login_failures,
     sha256_hex,
     verify_password,
 )
@@ -57,17 +63,56 @@ class AdminService:
         # 由路由层在调用审计方法之前设置
         self._request_ip: str | None = None
         self._request_ua: str | None = None
+        self._request_method: str | None = None
+        self._request_path: str | None = None
+        self._request_body: str | None = None
 
     # =========================================================================
     # 认证
     # =========================================================================
 
-    async def login(self, username: str, password: str) -> dict[str, Any]:
-        """管理员登录：使用密码登录方式，角色必须是 admin 或 super_admin。"""
+    async def login(
+        self,
+        username: str,
+        password: str,
+        *,
+        captcha_id: str = "",
+        captcha_solution: str = "",
+        request_body: str | None = None,
+    ) -> dict[str, Any]:
+        """管理员登录：使用密码登录方式，角色必须是 admin 或 super_admin。
+
+        安全加固：
+        - 强制校验图形验证码（先校验 CAPTCHA，失败不计入登录失败次数）
+        - 连续失败 3 次锁定 15 分钟
+        """
         username = (username or "").strip()
         if not username or not password:
             raise ValidationException(
                 "用户名和密码不能为空", code="VALIDATION_ERROR"
+            )
+
+        # ── 安全加固：校验图形验证码（先于密码校验，防止自动化）──
+        if not captcha_id or not captcha_solution:
+            raise ValidationException(
+                "图形验证码不能为空", code="AUTH_CAPTCHA_REQUIRED"
+            )
+        from src.apps.user.services.auth_service import AuthService
+
+        captcha_svc = AuthService(self.db)
+        if not await captcha_svc.verify_captcha(captcha_id, captcha_solution):
+            raise BusinessException(
+                "图形验证码错误或已过期",
+                code="AUTH_CAPTCHA_INVALID",
+                http_status=400,
+            )
+
+        # ── 安全加固：检查账号是否已被锁定 ──
+        if username and await check_login_locked(username, is_admin=True):
+            raise BusinessException(
+                f"账号已被临时锁定，请{LOCKOUT_TTL // 60}分钟后再试",
+                code="AUTH_ACCOUNT_LOCKED",
+                http_status=423,
             )
 
         stmt = select(AuthIdentity).where(
@@ -82,7 +127,10 @@ class AdminService:
                 provider="password",
                 login_status=LoginStatus.failed,
                 fail_reason="用户名或密码错误",
+                request_body=request_body,
             )
+            if username:
+                await record_login_failure(username, is_admin=True)
             raise UnauthorizedException(
                 "用户名或密码错误", code="AUTH_INVALID_CREDENTIALS"
             )
@@ -94,7 +142,10 @@ class AdminService:
                 provider="password",
                 login_status=LoginStatus.failed,
                 fail_reason="用户不存在",
+                request_body=request_body,
             )
+            if username:
+                await record_login_failure(username, is_admin=True)
             raise UnauthorizedException("用户不存在", code="USER_NOT_FOUND")
 
         if user.role not in {UserRole.admin, UserRole.super_admin}:
@@ -103,7 +154,10 @@ class AdminService:
                 provider="password",
                 login_status=LoginStatus.failed,
                 fail_reason="无管理员权限",
+                request_body=request_body,
             )
+            if username:
+                await record_login_failure(username, is_admin=True)
             raise UnauthorizedException("无管理员权限", code="ADMIN_FORBIDDEN")
 
         try:
@@ -114,7 +168,10 @@ class AdminService:
                 provider="password",
                 login_status=LoginStatus.failed,
                 fail_reason=e.message,
+                request_body=request_body,
             )
+            if username:
+                await record_login_failure(username, is_admin=True)
             raise
 
         tokens = await self._issue_token_pair(user)
@@ -134,7 +191,11 @@ class AdminService:
             user_uuid=user.uuid,
             provider="password",
             login_status=LoginStatus.success,
+            request_body=request_body,
         )
+        # 登录成功 → 清除失败计数
+        if username:
+            await reset_login_failures(username)
         return {
             **tokens,
             "user": user_out,
@@ -396,7 +457,7 @@ class AdminService:
             except Exception:
                 pass  # 批量操作中跳过未找到的用户
 
-        await self._record_audit(admin_uuid, f"user.batch_{action}", "user", "", detail={"uuids": uuids, "affected": affected})
+        await self._record_audit(admin_uuid, f"user.batch_{action}", "user", affected[0] if affected else "", detail={"uuids": uuids, "affected": affected})
         return {"affected": len(affected), "uuids": affected}
 
     async def export_users(self) -> str:
@@ -522,24 +583,69 @@ class AdminService:
     # 审计 action 的中文标签
     # -----------------------------------------------------------------
     _ACTION_LABELS: dict[str, str] = {
+        # ── 用户操作 ──
         "user.update": "更新用户",
         "user.delete": "删除用户",
+        "user.disable": "禁用用户",
+        "user.enable": "启用用户",
+        "user.review": "查看用户详情",
         "user.force_logout": "强制登出",
+        "user.reset_password": "重置用户密码",
         "user.batch_disable": "批量禁用用户",
         "user.batch_enable": "批量启用用户",
-        "task.delete": "删除任务",
+        "user.batch_delete": "批量删除用户",
+        # ── 管理员操作 ──
+        "admin.change_password": "修改管理员密码",
+        "admin.login": "管理员登录",
+        "admin.logout": "管理员登出",
+        # ── 任务操作 ──
         "task.create": "创建任务",
         "task.update": "更新任务",
+        "task.delete": "删除任务",
+        "task.complete": "完成任务",
+        "task.uncomplete": "取消完成任务",
+        "task.audit": "查看任务",
+        "task.batch_complete": "批量完成任务",
         "task.batch_delete": "批量删除任务",
         "task.batch_restore": "批量恢复任务",
+        # ── 标签操作 ──
+        "tag.create": "创建标签",
         "tag.update": "更新标签",
         "tag.delete": "删除标签",
+        # ── 反馈操作 ──
+        "feedback.create": "提交反馈",
         "feedback.update": "更新反馈状态",
+        "feedback.process": "处理反馈",
+        "feedback.delete": "删除反馈",
+        # ── 系统配置 ──
         "config.update": "更新系统配置",
+        # ── 公告操作 ──
         "announcement.create": "创建公告",
         "announcement.update": "更新公告",
         "announcement.delete": "删除公告",
+        # ── 敏感词操作 ──
+        "sensitive_word.create": "添加敏感词",
+        "sensitive_word.add": "添加敏感词",
+        "sensitive_word.update": "更新敏感词",
+        "sensitive_word.delete": "删除敏感词",
+        "sensitive_word.import": "导入敏感词",
+        # ── IP黑名单操作 ──
+        "ip_blacklist.create": "添加IP黑名单",
+        "ip_blacklist.delete": "移除IP黑名单",
+        # ── 同步操作 ──
+        "sync.push": "数据同步上传",
+        "sync.pull": "数据同步下载",
     }
+
+    @classmethod
+    def _action_label(cls, action: str) -> str:
+        """返回审计 action 的中文标签，未知 action 自动标记以便排查。"""
+        label = cls._ACTION_LABELS.get(action)
+        if label is not None:
+            return label
+        # 未知 action：加 ⚠ 前缀方便运维发现并补充，同时保留原始值.
+        logger.warning("Missing audit action label for: %s", action)
+        return f"⚠ {action}"
 
     async def list_audit(
         self,
@@ -583,10 +689,12 @@ class AdminService:
             "userUuid": r.user_uuid,
             "userNickname": nicknames.get(r.user_uuid) if r.user_uuid else None,
             "action": r.action,
-            "actionLabel": self._ACTION_LABELS.get(r.action, r.action),
+            "actionLabel": self._action_label(r.action),
             "resourceType": r.resource_type,
             "resourceUuid": r.resource_uuid,
             "ipAddress": r.ip_address,
+            "requestMethod": r.request_method,
+            "requestPath": r.request_path,
             "detail": r.detail,
             "createdAt": r.created_at.isoformat() if r.created_at else None,
         } for r in rows]
@@ -615,11 +723,13 @@ class AdminService:
             "userUuid": row.user_uuid,
             "userNickname": nickname,
             "action": row.action,
-            "actionLabel": self._ACTION_LABELS.get(row.action, row.action),
+            "actionLabel": self._action_label(row.action),
             "resourceType": row.resource_type,
             "resourceUuid": row.resource_uuid,
             "ipAddress": row.ip_address,
             "userAgent": row.user_agent,
+            "requestMethod": row.request_method,
+            "requestPath": row.request_path,
             "detail": row.detail,
             "createdAt": row.created_at.isoformat() if row.created_at else None,
         }
@@ -643,6 +753,8 @@ class AdminService:
             detail=detail,
             ip_address=ip_address or getattr(self, "_request_ip", None) or None,
             user_agent=user_agent or getattr(self, "_request_ua", None) or None,
+            request_method=getattr(self, "_request_method", None) or None,
+            request_path=getattr(self, "_request_path", None) or None,
         )
         self.db.add(log)
 
@@ -653,6 +765,7 @@ class AdminService:
         provider: str,
         login_status: LoginStatus,
         fail_reason: str | None = None,
+        request_body: str | None = None,
     ) -> None:
         """记录一次登录尝试（成功或失败），从请求中捕获 IP / UA。
 
@@ -667,8 +780,13 @@ class AdminService:
 
         ip = getattr(self, "_request_ip", None) or None
         ua = getattr(self, "_request_ua", None) or None
+        method = getattr(self, "_request_method", None) or None
+        path = getattr(self, "_request_path", None) or None
+        # request_body 由路由层传入，应已脱敏；超长截断到 4 KB
+        body = (request_body or "")[:4096] or None
 
-        sync_url = settings.DATABASE_URL.replace("mysql+aiomysql", "mysql+pymysql")
+        import re
+        sync_url = re.sub(r"mysql\+(?:aiomysql|asyncmy)", "mysql+pymysql", settings.DATABASE_URL)
         engine = create_engine(sync_url, pool_pre_ping=True)
 
         with engine.begin() as conn:
@@ -678,6 +796,9 @@ class AdminService:
                 provider=provider,
                 ip_address=ip,
                 user_agent=ua,
+                request_method=method,
+                request_path=path,
+                request_body=body,
                 login_status=login_status,
                 fail_reason=fail_reason,
                 created_at=datetime.utcnow(),
@@ -790,12 +911,25 @@ class AdminService:
         stmt = stmt.order_by(LoginLog.created_at.desc()).limit(page_size).offset((page - 1) * page_size)
         rows = (await self.db.execute(stmt)).scalars().all()
 
+        # 批量解析用户 UUID 对应的昵称
+        user_uuids = {r.user_uuid for r in rows if r.user_uuid}
+        nicknames: dict[str, str] = {}
+        if user_uuids:
+            user_rows = (await self.db.execute(
+                select(User.uuid, User.nickname).where(User.uuid.in_(user_uuids))
+            )).all()
+            nicknames = {u.uuid: u.nickname for u in user_rows}
+
         items = [{
             "uuid": r.uuid,
             "userUuid": r.user_uuid,
+            "userNickname": nicknames.get(r.user_uuid) if r.user_uuid else None,
             "provider": r.provider,
             "ipAddress": r.ip_address,
             "userAgent": r.user_agent,
+            "requestMethod": r.request_method,
+            "requestPath": r.request_path,
+            "requestBody": r.request_body,
             "loginStatus": r.login_status.value if hasattr(r.login_status, "value") else str(r.login_status),
             "failReason": r.fail_reason,
             "createdAt": r.created_at.isoformat() if r.created_at else None,
@@ -1322,7 +1456,7 @@ class AdminService:
         if affected:
             await self.db.flush()
 
-        await self._record_audit(admin_uuid, f"task.batch_{action}", "task", "", detail={"uuids": task_uuids, "affected": affected})
+        await self._record_audit(admin_uuid, f"task.batch_{action}", "task", affected[0] if affected else "", detail={"uuids": task_uuids, "affected": affected})
         return {"affected": len(affected), "taskUuids": affected}
 
     async def create_task(

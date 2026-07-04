@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import CaptchaInput from '@/components/common/CaptchaInput.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -12,19 +13,33 @@ const password = ref('')
 const loading = ref(false)
 const errorMsg = ref('')
 
+// 图形验证码
+const captchaId = ref('')
+const captchaSolution = ref('')
+
 async function handleLogin() {
   if (!email.value || !password.value) {
     errorMsg.value = '请输入邮箱和密码'
     return
   }
+  if (!captchaSolution.value) {
+    errorMsg.value = '请输入图形验证码'
+    return
+  }
   loading.value = true
   errorMsg.value = ''
   try {
-    await auth.login('password', { identifier: email.value, password: password.value })
+    await auth.login(
+      'password',
+      { identifier: email.value, password: password.value },
+      { captchaId: captchaId.value, captchaSolution: captchaSolution.value },
+    )
     const redirect = (route.query.redirect as string) || '/'
     router.push(redirect)
   } catch (e: any) {
     errorMsg.value = e.message || '登录失败，请重试'
+    captchaSolution.value = ''
+    captchaId.value = '' // 触发 CaptchaInput 刷新
   } finally {
     loading.value = false
   }
@@ -67,6 +82,12 @@ async function handleLogin() {
             placeholder="至少 8 位"
           />
         </div>
+
+        <!-- 图形验证码：默认显示 -->
+        <CaptchaInput
+          v-model:captcha-id="captchaId"
+          v-model:solution="captchaSolution"
+        />
 
         <p v-if="errorMsg" class="error">{{ errorMsg }}</p>
 
@@ -150,6 +171,12 @@ async function handleLogin() {
 }
 .field input:focus {
   border-color: var(--c-brand-500);
+}
+.captcha-wrap {
+  /* 复用 .field 的间距但属于 form-gap 之内 */
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
 }
 .error {
   color: var(--c-danger);

@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppToast from '@/components/common/AppToast.vue'
 import ConfettiCanvas from '@/components/common/ConfettiCanvas.vue'
+import KeyboardHelp from '@/components/common/KeyboardHelp.vue'
 import { useTaskStore } from '@/stores/task'
 
 const route = useRoute()
@@ -17,7 +18,14 @@ const taskStore = useTaskStore()
     <router-view />
   </main>
   <AppToast />
-  <ConfettiCanvas :active="!!taskStore.celebrationTitle" />
+  <KeyboardHelp />
+  <ConfettiCanvas
+    :active="!!taskStore.celebrationTitle"
+    :origin-x="taskStore.celebrationOrigin?.x"
+    :origin-y="taskStore.celebrationOrigin?.y"
+    :intensity="taskStore.completionIntensity"
+    :quadrant="taskStore.lastCompletedQuadrant ?? undefined"
+  />
 </template>
 
 <style>
@@ -119,7 +127,7 @@ const taskStore = useTaskStore()
   /* 布局 */
   --header-height: 56px;
   --toolbar-height: 44px;
-  --task-card-max-width: 260px;
+  --task-card-max-width: 220px;
 
   /* 字体栈 */
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -177,7 +185,7 @@ const taskStore = useTaskStore()
     --t-body-size: 14px;
     --t-caption-size: 12px;
     --r-modal: 16px;
-    --task-card-max-width: 100px;
+    --task-card-max-width: 88px;
   }
 }
 

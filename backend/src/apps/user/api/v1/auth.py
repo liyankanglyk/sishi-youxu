@@ -53,7 +53,12 @@ async def login(body: LoginRequest, db: DbSession, request: Request) -> dict:
     """账号登录（password / phone_sms / email_code）。"""
     svc = _service(db)
     _set_request_meta(svc, request)
-    result = await svc.login(body.provider, body.payload or {})
+    result = await svc.login(
+        body.provider,
+        body.payload or {},
+        captcha_id=body.captchaId,
+        captcha_solution=body.captchaSolution,
+    )
     await db.commit()
     return ok(result)
 

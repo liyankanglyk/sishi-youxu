@@ -176,7 +176,7 @@ async function handleRequest() {
 }
 .success-icon { font-size: 3rem; margin-bottom: 0.5rem; }
 .success-state p { margin: 0.5rem 0; }
-.success-state .dim { color: var(--c-gray-400); font-size: 0.9rem; }
+.success-state .dim { color: var(--c-gray-500); font-size: 0.9rem; }
 .back-link {
   display: inline-block;
   margin-top: 1rem;

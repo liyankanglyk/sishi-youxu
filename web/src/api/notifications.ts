@@ -30,4 +30,9 @@ export const notificationApi = {
   delete(uuid: string) {
     return apiClient.delete(`/notifications/${uuid}`)
   },
+
+  /** 触发服务端通知同步（生成过期任务提醒 + 未读公告） */
+  sync() {
+    return apiClient.post('/notifications/sync')
+  },
 }

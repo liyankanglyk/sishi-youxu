@@ -63,13 +63,13 @@ function renderChart() {
       boundaryGap: false,
       axisLine: { lineStyle: { color: '#e2e8f0' } },
       axisTick: { show: false },
-      axisLabel: { color: '#94a3b8', fontSize: 11 },
+      axisLabel: { color: '#64748b', fontSize: 12 },
     },
     yAxis: {
       type: 'value',
       minInterval: 1,
       splitLine: { lineStyle: { color: '#f1f5f9' } },
-      axisLabel: { color: '#94a3b8', fontSize: 11 },
+      axisLabel: { color: '#64748b', fontSize: 12 },
     },
     series: [{
       name: labels[activeMetric.value],
@@ -266,13 +266,13 @@ onUnmounted(() => {
 }
 
 .stat-label {
-  font-size: 12.5px;
-  color: #94a3b8;
+  font-size: 14px;
+  color: #64748b;
   font-weight: 500;
 }
 
 .stat-value {
-  font-size: 26px;
+  font-size: 30px;
   font-weight: 700;
   color: #0f172a;
   letter-spacing: -0.02em;
@@ -311,8 +311,8 @@ onUnmounted(() => {
 }
 
 .card-sub {
-  font-size: 12px;
-  color: #94a3b8;
+  font-size: 13px;
+  color: #64748b;
 }
 
 .card-empty {
@@ -323,7 +323,7 @@ onUnmounted(() => {
 }
 
 .empty-text {
-  color: #cbd5e1;
+  color: #94a3b8;
   font-size: 14px;
 }
 
@@ -338,8 +338,8 @@ onUnmounted(() => {
 
 .qm-top-label,
 .qm-bottom-label {
-  font-size: 11px;
-  color: #94a3b8;
+  font-size: 12px;
+  color: #64748b;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-align: center;
@@ -358,8 +358,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
-  color: #94a3b8;
+  font-size: 12px;
+  color: #64748b;
   font-weight: 600;
   letter-spacing: 0.04em;
   min-width: 20px;
@@ -396,7 +396,7 @@ onUnmounted(() => {
 }
 
 .qm-cell span {
-  font-size: 11.5px;
+  font-size: 13px;
   font-weight: 500;
   opacity: 0.8;
   text-align: center;
@@ -430,9 +430,9 @@ onUnmounted(() => {
 .metric-tab {
   border: none;
   background: transparent;
-  padding: 5px 14px;
+  padding: 6px 14px;
   border-radius: 6px;
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 500;
   color: #64748b;
   cursor: pointer;

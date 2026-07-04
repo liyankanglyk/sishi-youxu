@@ -21,6 +21,8 @@ class AdminLoginRequest(BaseModel):
 
     username: str = Field(..., min_length=1, description="管理员用户名")
     password: str = Field(..., min_length=1, description="管理员密码")
+    captchaId: Optional[str] = Field(default=None, description="图形验证码 ID（安全加固：管理员登录必填）")
+    captchaSolution: Optional[str] = Field(default=None, description="图形验证码答案（安全加固：管理员登录必填）")
 
 
 class AdminRefreshRequest(BaseModel):

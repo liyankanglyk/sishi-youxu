@@ -177,6 +177,32 @@ class IpBlacklistMiddleware(BaseHTTPMiddleware):
             return False
 
 
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """为所有响应添加安全相关的 HTTP 头部。
+
+    包括：
+    - HSTS（仅生产环境）
+    - X-Content-Type-Options: nosniff
+    - X-Frame-Options: DENY
+    - X-XSS-Protection
+    - Referrer-Policy
+    - Content-Security-Policy（仅生产环境）
+    """
+
+    async def dispatch(self, request: Request, call_next):  # type: ignore[override]
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        # HSTS 仅在 HTTPS 生产环境生效，避免本地开发误伤
+        if settings.APP_ENV == "production":
+            response.headers[
+                "Strict-Transport-Security"
+            ] = "max-age=31536000; includeSubDomains"
+        return response
+
+
 class BusinessExceptionMiddleware(BaseHTTPMiddleware):
     """将 BusinessException 翻译为规范定义的失败响应外壳。"""
 
@@ -217,6 +243,7 @@ def install_middlewares(app: FastAPI) -> None:
             "X-Client-Platform",
         ],
     )
+    app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(IpBlacklistMiddleware)
     app.add_middleware(BusinessExceptionMiddleware)
     app.add_middleware(RequestIDMiddleware)

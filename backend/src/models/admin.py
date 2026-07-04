@@ -41,6 +41,7 @@ class AuditLog(Base, UUIDMixin):
         Index("idx_user_action", "user_uuid", "action"),
         Index("idx_resource", "resource_type", "resource_uuid"),
         Index("idx_created_at", "created_at"),
+        Index("idx_request_path", "request_path"),
     )
 
     user_uuid: Mapped[str | None] = mapped_column(CHAR(36), nullable=True, index=True)
@@ -49,6 +50,9 @@ class AuditLog(Base, UUIDMixin):
     resource_uuid: Mapped[str | None] = mapped_column(CHAR(36), nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
     user_agent: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # HTTP 请求细节（migrate_audit_request_v1）
+    request_method: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    request_path: Mapped[str | None] = mapped_column(String(500), nullable=True, index=True)
     detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=_utcnow, comment="操作时间"
@@ -71,6 +75,10 @@ class LoginLog(Base, UUIDMixin):
     provider: Mapped[str] = mapped_column(String(32), nullable=False)
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
     user_agent: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # HTTP 请求细节
+    request_method: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    request_path: Mapped[str | None] = mapped_column(String(500), nullable=True, index=True)
+    request_body: Mapped[str | None] = mapped_column(Text, nullable=True)
     login_status: Mapped[LoginStatus] = mapped_column(
         Enum(LoginStatus, native_enum=False, length=16), nullable=False
     )
