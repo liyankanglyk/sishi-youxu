@@ -182,7 +182,7 @@ onMounted(fetch)
         <el-descriptions :column="1" border>
           <el-descriptions-item label="登录时间">{{ formatTime(detailEntry.createdAt) }}</el-descriptions-item>
           <el-descriptions-item label="用户">
-            <span v-if="detailEntry.userNickname" :title="detailEntry.userUuid">{{ detailEntry.userNickname }}</span>
+            <span v-if="detailEntry.userNickname" :title="detailEntry.userUuid ?? undefined">{{ detailEntry.userNickname }}</span>
             <span v-else-if="detailEntry.userUuid" class="uuid-text">{{ detailEntry.userUuid }}</span>
             <span v-else>-</span>
           </el-descriptions-item>

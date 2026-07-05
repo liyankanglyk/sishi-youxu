@@ -55,13 +55,22 @@ export interface LocalChecklistItem {
   version: number
 }
 
+/**
+ * 待同步操作（IndexedDB 行结构）。
+ * 字段必须与 web/src/lib/sync/types.ts 的 PendingOpRecord 保持一致，
+ * 否则 Dexie 的 Table<PendingOp, number> 会与 repository 写入的类型冲突。
+ */
 export interface PendingOp {
   id?: number
-  opType: 'upsert' | 'delete'
+  opId: string
   entityType: 'task' | 'tag' | 'taskTag' | 'checklistItems'
+  opType: 'upsert' | 'delete'
   entityUuid: string
   payload: Record<string, unknown>
   createdAt: string
+  status: 'pending' | 'syncing' | 'conflict' | 'failed'
+  errorMessage?: string
+  resolution?: 'local' | 'remote'
 }
 
 export interface SyncMetaEntry {

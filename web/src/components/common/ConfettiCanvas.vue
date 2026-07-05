@@ -228,7 +228,6 @@ function start() {
   const cfg = getIntensityConfig(level)
 
   // 主粒子群
-  const pals = palette()
   particles = spawnParticles(ox, oy, cfg.particleCount, null, null)
 
   // 金色粒子

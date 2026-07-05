@@ -67,11 +67,6 @@ function formatTime(iso: string) {
   return new Date(iso).toLocaleString('zh-CN')
 }
 
-function formatDetail(detail: Record<string, unknown> | null | undefined) {
-  if (!detail || Object.keys(detail).length === 0) return '无'
-  return JSON.stringify(detail, null, 2)
-}
-
 // 把 detail dict 转成「字段：值」表格行；值若是对象就再展开一层
 const detailRows = computed(() => {
   const detail = detailEntry.value?.detail

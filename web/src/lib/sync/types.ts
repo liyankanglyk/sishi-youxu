@@ -3,6 +3,7 @@
  *
  * 与 docs/03-技术架构/同步协议.md 完全对齐。
  */
+import type { PendingOp as PendingOpBase } from '@/db'
 
 export type SyncStatus = 'idle' | 'syncing' | 'offline' | 'error'
 
@@ -10,20 +11,8 @@ export type EntityType = 'task' | 'tag' | 'taskTag' | 'checklistItems'
 
 export type OpType = 'upsert' | 'delete'
 
-/** 入队时的 op（包含排队状态） */
-export interface PendingOpRecord {
-  id?: number
-  opId: string
-  entityType: EntityType
-  opType: OpType
-  entityUuid: string
-  payload: Record<string, unknown>
-  createdAt: string
-  status: 'pending' | 'syncing' | 'conflict' | 'failed'
-  errorMessage?: string
-  /** 解决冲突时由用户选择的策略 */
-  resolution?: 'local' | 'remote'
-}
+/** 入队时的 op（包含排队状态） —— 与 IndexedDB 行结构完全一致 */
+export type PendingOpRecord = PendingOpBase
 
 /** 后端 push 单条 op 的返回 */
 export interface PushOpResult {

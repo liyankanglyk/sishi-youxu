@@ -139,7 +139,7 @@ watch(() => [props.visible, props.taskUuid], async ([vis, uuid]) => {
       }
     }
     // 检查项：store 中已有则即时渲染，无需网络等待
-    if (hasFullData) {
+    if (hasFullData && local.checklistItems) {
       checklist.value = local.checklistItems.map((c: any) => ({ ...c, _new: false }))
     }
   }
