@@ -30,7 +30,7 @@ VALUES
      NOW(), NOW());
 
 -- ---------------------------------------------------------------------------
--- 2. 演示管理员 (admin_demo / admin123) — 运营/审核场景
+-- 2. 演示管理员 (admin_demo / 123456) — 运营/审核场景
 -- ---------------------------------------------------------------------------
 INSERT IGNORE INTO `sishiyouxu_user`
     (`uuid`, `nickname`, `avatar_url`, `role`, `status`, `locale`, `created_at`, `updated_at`)
@@ -44,11 +44,11 @@ VALUES
      'c0000000-0000-0000-0000-000000000001',
      'password',
      'admin_demo',
-     '$2b$12$xZE7ORZpF2VEkTdWUFjpKO9cdHVmS.zRrtZofUWHY8EAfGwPkXwLW',
+     '$2b$12$.3.iTJel2C61kSF1xRXoTOcqS.8yG4Ue01gKlU.wb4JOnhaYEDMMG',
      NOW(), NOW());
 
 -- ---------------------------------------------------------------------------
--- 3. 演示账号 (demo / demo123) — 大三学生场景
+-- 3. 演示账号 (demo / 123456) — 大三学生场景
 -- ---------------------------------------------------------------------------
 INSERT IGNORE INTO `sishiyouxu_user`
     (`uuid`, `nickname`, `role`, `status`, `locale`, `created_at`, `updated_at`)
@@ -62,7 +62,7 @@ VALUES
      'b0000000-0000-0000-0000-000000000001',
      'password',
      'demo',
-     '$2b$12$3g5d4Q7g7LS1KiiT42VQNOqZPAQmwF7CySlnAsroLoEu4a8M2beK6',
+     '$2b$12$.3.iTJel2C61kSF1xRXoTOcqS.8yG4Ue01gKlU.wb4JOnhaYEDMMG',
      NOW(), NOW());
 
 -- ---------------------------------------------------------------------------
