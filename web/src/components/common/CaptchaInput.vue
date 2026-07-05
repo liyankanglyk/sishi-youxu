@@ -103,7 +103,9 @@ onMounted(loadCaptcha)
 
 .captcha-input {
   flex: 1;
-  padding: 0.65rem 0.75rem;
+  min-width: 0; /* 防止 flex 子项溢出挤压 */
+  padding: 0.75rem;
+  min-height: 44px;
   border: 1px solid var(--c-gray-300);
   border-radius: 8px;
   font-size: 1rem;
@@ -123,7 +125,7 @@ onMounted(loadCaptcha)
 .captcha-img-btn {
   flex-shrink: 0;
   width: 120px;
-  height: auto;
+  min-height: 44px;
   border: 1px solid var(--c-gray-300);
   border-radius: 8px;
   background: var(--surface-secondary);
@@ -163,5 +165,21 @@ onMounted(loadCaptcha)
   font-size: 0.8rem;
   color: var(--c-danger);
   margin: 0;
+}
+
+/* ─────────────── 移动端适配 ─────────────── */
+@media (max-width: 480px) {
+  .captcha-input {
+    /* iOS 聚焦不放大 */
+    font-size: 16px;
+  }
+  .captcha-row {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .captcha-img-btn {
+    width: 100%;
+    height: 48px;
+  }
 }
 </style>

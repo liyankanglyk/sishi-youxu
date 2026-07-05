@@ -112,13 +112,18 @@ async function handleLogin() {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
+  min-height: 100dvh;
   background:
     radial-gradient(ellipse 100% 70% at 0% 0%, rgba(129, 140, 248, 0.35) 0%, transparent 50%),
     radial-gradient(ellipse 100% 70% at 100% 0%, rgba(99, 102, 241, 0.30) 0%, transparent 50%),
     radial-gradient(ellipse 100% 70% at 0% 100%, rgba(199, 210, 254, 0.32) 0%, transparent 50%),
     radial-gradient(ellipse 100% 70% at 100% 100%, rgba(165, 180, 252, 0.26) 0%, transparent 50%),
     var(--c-gray-50);
-  padding: 1rem;
+  padding:
+    max(1rem, env(safe-area-inset-top))
+    max(1rem, env(safe-area-inset-right))
+    max(1rem, env(safe-area-inset-bottom))
+    max(1rem, env(safe-area-inset-left));
 }
 .auth-card {
   width: 100%;
@@ -160,7 +165,8 @@ async function handleLogin() {
   color: var(--c-gray-700);
 }
 .field input {
-  padding: 0.65rem 0.75rem;
+  padding: 0.75rem;
+  min-height: 44px; /* 满足移动端最小触控目标 */
   border: 1px solid var(--c-gray-300);
   border-radius: 8px;
   font-size: 1rem;
@@ -185,6 +191,7 @@ async function handleLogin() {
 }
 .btn-primary {
   padding: 0.75rem;
+  min-height: 44px;
   background: var(--c-brand-500);
   color: #FFFFFF;
   border: none;
@@ -195,6 +202,7 @@ async function handleLogin() {
   transition: background 0.2s;
 }
 .btn-primary:hover { background: var(--c-brand-600); }
+.btn-primary:active:not(:disabled) { transform: scale(0.98); }
 .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
 .auth-link {
   text-align: center;
@@ -203,4 +211,70 @@ async function handleLogin() {
   color: var(--c-gray-500);
 }
 .auth-link a { color: var(--c-brand-500); text-decoration: none; }
+.auth-link a:active { opacity: 0.7; }
+
+/* ─────────────── 移动端适配 (≤ 480px) ─────────────── */
+@media (max-width: 480px) {
+  .auth-page {
+    padding: 12px;
+    align-items: stretch;
+  }
+  .auth-card {
+    padding: 1.75rem 1.25rem 1.5rem;
+    border-radius: 14px;
+    margin: auto 0;
+  }
+  .auth-logo svg {
+    width: 40px;
+    height: 40px;
+  }
+  .auth-title {
+    font-size: 1.5rem;
+  }
+  .auth-subtitle {
+    font-size: 0.85rem;
+    margin-bottom: 1.25rem;
+  }
+  .auth-form {
+    gap: 0.875rem;
+  }
+  /* 关键：iOS 聚焦时需 ≥ 16px 才不会自动放大 */
+  .field input {
+    font-size: 16px;
+    padding: 0.85rem;
+  }
+  .field label {
+    font-size: 0.8rem;
+  }
+  .error {
+    font-size: 0.8rem;
+  }
+  .auth-link {
+    font-size: 0.85rem;
+    margin-top: 1rem;
+  }
+}
+
+/* ─────────────── 矮屏适配 (max-height ≤ 700px) ─────────────── */
+@media (max-height: 700px) {
+  .auth-card {
+    padding: 1.5rem 1.75rem;
+  }
+  .auth-subtitle {
+    margin-bottom: 1rem;
+  }
+  .auth-form {
+    gap: 0.75rem;
+  }
+}
+
+/* 超窄屏（300% 缩放场景） */
+@media (max-width: 360px) {
+  .auth-card {
+    padding: 1.25rem 1rem 1rem;
+  }
+  .auth-title {
+    font-size: 1.35rem;
+  }
+}
 </style>

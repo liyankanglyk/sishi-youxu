@@ -65,7 +65,7 @@ onMounted(loadCaptcha)
 
 <template>
   <div class="login-page">
-    <div class="login-bg">
+    <div class="login-bg" aria-hidden="true">
       <div class="bg-shape bg-shape-1" />
       <div class="bg-shape bg-shape-2" />
     </div>
@@ -150,11 +150,17 @@ onMounted(loadCaptcha)
 <style scoped>
 .login-page {
   min-height: 100vh;
+  min-height: 100dvh; /* 动态视口高度，避开移动浏览器地址栏 */
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
   overflow: hidden;
+  padding:
+    max(1rem, env(safe-area-inset-top))
+    max(1rem, env(safe-area-inset-right))
+    max(1rem, env(safe-area-inset-bottom))
+    max(1rem, env(safe-area-inset-left));
   background:
     radial-gradient(ellipse 100% 70% at 0% 0%, rgba(129, 140, 248, 0.35) 0%, transparent 50%),
     radial-gradient(ellipse 100% 70% at 100% 0%, rgba(99, 102, 241, 0.30) 0%, transparent 50%),
@@ -198,7 +204,8 @@ onMounted(loadCaptcha)
 .login-card {
   position: relative;
   z-index: 1;
-  width: 400px;
+  width: 100%;
+  max-width: 400px;
   background: #fff;
   border-radius: 16px;
   padding: 40px 36px 36px;
@@ -257,6 +264,7 @@ onMounted(loadCaptcha)
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   padding: 0 14px;
+  min-height: 44px; /* 满足移动端最小触控目标 */
   transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 
@@ -268,6 +276,7 @@ onMounted(loadCaptcha)
 
 .input-wrap input {
   flex: 1;
+  min-width: 0; /* 防止 flex 子项溢出 */
   border: none;
   background: transparent;
   padding: 12px 0;
@@ -289,6 +298,7 @@ onMounted(loadCaptcha)
 }
 .captcha-input-wrap {
   flex: 1;
+  min-width: 0;
 }
 .captcha-input {
   text-transform: uppercase;
@@ -308,6 +318,7 @@ onMounted(loadCaptcha)
   display: flex;
   align-items: center;
   justify-content: center;
+  min-height: 44px;
 }
 .captcha-img-btn:hover:not(:disabled) {
   border-color: #6366f1;
@@ -354,6 +365,7 @@ onMounted(loadCaptcha)
   cursor: pointer;
   transition: all 150ms ease;
   font-family: inherit;
+  min-height: 44px;
 }
 
 .login-btn:hover:not(:disabled) {
@@ -387,5 +399,102 @@ onMounted(loadCaptcha)
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* ─────────────── 移动端适配 (≤ 480px) ─────────────── */
+@media (max-width: 480px) {
+  .login-page {
+    /* 短屏时上下留白略减，让卡片能舒展 */
+    padding: 12px;
+    align-items: stretch;
+  }
+
+  /* 移动端背景模糊更轻，提升低端机性能 */
+  .bg-shape {
+    filter: blur(60px);
+    opacity: 0.12;
+  }
+  .bg-shape-1 {
+    width: 280px;
+    height: 280px;
+    top: -80px;
+    right: -100px;
+  }
+  .bg-shape-2 {
+    width: 240px;
+    height: 240px;
+    bottom: -80px;
+    left: -80px;
+  }
+
+  .login-card {
+    padding: 28px 22px 24px;
+    border-radius: 14px;
+    /* 在很矮的屏幕上允许卡片自然撑开 */
+    margin: auto 0;
+  }
+
+  .login-brand {
+    margin-bottom: 24px;
+  }
+  .brand-mark svg {
+    width: 32px;
+    height: 32px;
+  }
+  .login-brand h1 {
+    font-size: 20px;
+  }
+  .login-brand p {
+    font-size: 12px;
+  }
+
+  .login-form {
+    gap: 16px;
+  }
+
+  /* 关键：避免 iOS 聚焦时页面放大（字体 ≥ 16px） */
+  .input-wrap input {
+    font-size: 16px;
+    padding: 13px 0;
+  }
+
+  /* 验证码：横向挤不下时改为上下排布 */
+  .captcha-row {
+    flex-wrap: wrap;
+  }
+  .captcha-img-btn {
+    width: 100%;
+    height: 48px;
+  }
+
+  .form-error {
+    font-size: 12px;
+    padding: 9px 12px;
+  }
+
+  .login-btn {
+    padding: 13px;
+    font-size: 15px;
+  }
+}
+
+/* ─────────────── 矮屏适配 (max-height ≤ 700px) ─────────────── */
+@media (max-height: 700px) {
+  .login-card {
+    padding: 24px 28px;
+  }
+  .login-brand {
+    margin-bottom: 20px;
+  }
+}
+
+/* 防止 300% 缩放时被裁切（无障碍） */
+@media (max-width: 360px) {
+  .login-card {
+    padding: 24px 18px 20px;
+  }
+  .login-brand h1 {
+    font-size: 18px;
+  }
 }
 </style>
