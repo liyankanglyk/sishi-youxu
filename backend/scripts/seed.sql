@@ -1,20 +1,9 @@
--- =============================================================================
--- 四时有序 (sishi-youxu) — 种子数据脚本
--- =============================================================================
--- 使用方法：
---   mysql -u root -p sishi_youxu < scripts/seed.sql
---
--- 包含：
---   - 超管账号：admin / 123456
---   - 演示管理员：admin_demo / admin123
---   - 演示账号：demo / demo123（大三学生场景，含 14 条任务、标签、检查项、通知）
---   - 审计日志、登录日志、系统公告、用户反馈（演示数据）
---   - 所有数据均使用 INSERT IGNORE 避免覆盖已有数据
---
--- Phase 4.5 安全加固说明：
---   - sishiyouxu_user 表新增 failed_login_attempts / locked_until 字段（有默认值）
---   - INSERT IGNORE 会跳过这些字段，DB 自动填默认值（0 / NULL），无需修改本脚本
--- =============================================================================
+-- seed.sql — 在 init_db.sql 之后执行
+-- 包含账号：
+--   admin       / 123456        (super_admin)
+--   admin_demo  / admin123      (admin)
+--   demo        / demo123       (user)
+-- 执行：mysql -u root -p sishi_youxu < scripts/seed.sql
 
 USE `sishi_youxu`;
 

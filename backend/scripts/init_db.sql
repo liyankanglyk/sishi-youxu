@@ -1,27 +1,7 @@
--- =============================================================================
--- 四时有序 (sishi-youxu) — 数据库初始化脚本
--- =============================================================================
--- 数据库：sishi_youxu
--- 字符集：utf8mb4 / utf8mb4_unicode_ci
--- 存储引擎：InnoDB
--- 表前缀：sishiyouxu_
---
--- Phase 4.5 安全加固 (2026-07-04)：
---   - sishiyouxu_user 表新增字段：
---     · failed_login_attempts INT NOT NULL DEFAULT 0  -- 连续登录失败次数
---     · locked_until          DATETIME DEFAULT NULL     -- 锁定截止时间
---   - 新增索引：idx_user_locked_until (locked_until)
---   - 脚本末尾包含幂等迁移段（如已存在则跳过），便于给现有库追加
---
--- 兼容要点：
---   - sishiyouxu_auth_identity.provider ENUM 包含 'wechat'，供微信小程序登录
---   - sishiyouxu_notification 新增 `template_id` 列 + 'wechat_subscribe' kind
---   - sishiyouxu_admin_permission 仅保留 (role, permission) 联合主键
---   - 所有核心业务表含 deleted_at 软删除标记；仅追加表（audit/login）不含
---
--- 使用方法：
---   mysql -u root -p < scripts/init_db.sql
--- =============================================================================
+-- init_db.sql — 建库 + 14 张业务表 + 4 预设标签 + 权限矩阵 + system_config
+-- 字符集 utf8mb4 / 引擎 InnoDB / 表前缀 sishiyouxu_
+-- 本文件无账号 INSERT
+-- 执行：mysql -u root -p < scripts/init_db.sql
 
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
