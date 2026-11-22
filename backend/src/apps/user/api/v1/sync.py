@@ -96,6 +96,10 @@ async def push_sync(body: SyncPushRequest, current: RequiredUser, db: DbSession)
 
     redis = get_redis()
     results: list[dict] = []
+    # 幂等缓存必须等整批 commit 成功后才写：写早了，一旦提交失败，
+    # Redis 里会留下 "applied"，客户端重试命中缓存拿到 applied 就会把 op 出队，
+    # 本地改动永久丢失、服务端从未落库。
+    pending_idem: list[tuple[str, str]] = []
     user_uuid = current["uuid"]
     svc = TaskService(db)
 
@@ -142,16 +146,8 @@ async def push_sync(body: SyncPushRequest, current: RequiredUser, db: DbSession)
             op_result["status"] = op_result.get("status", "applied")
             op_result["serverTime"] = _iso(_now())
 
-            # 缓存结果用于幂等
-            if redis is not None:
-                try:
-                    await redis.set(
-                        idem_key,
-                        json.dumps(op_result, default=str),
-                        ex=_SYNC_IDEMPOTENCY_TTL,
-                    )
-                except Exception as e:
-                    logger.warning("[sync] redis set failed (non-fatal): %s", e)
+            # 缓存结果用于幂等 —— 这里只登记，等整批 commit 成功后统一写入
+            pending_idem.append((idem_key, json.dumps(op_result, default=str)))
             results.append(op_result)
         except Exception as exc:
             logger.warning("sync op %s failed: %s", op_id, exc)
@@ -177,11 +173,38 @@ async def push_sync(body: SyncPushRequest, current: RequiredUser, db: DbSession)
             if r.get("status") not in ("rejected", "conflict"):
                 r["status"] = "rejected"
                 r["reason"] = f"commit failed: {e}"
+        # 提交失败就不写幂等缓存，下次重试会真正重新执行
+        pending_idem.clear()
+    else:
+        # 只有真正落库后才写幂等缓存
+        if redis is not None:
+            for idem_cache_key, idem_value in pending_idem:
+                try:
+                    await redis.set(
+                        idem_cache_key,
+                        idem_value,
+                        ex=_SYNC_IDEMPOTENCY_TTL,
+                    )
+                except Exception as e:
+                    logger.warning("[sync] redis set failed (non-fatal): %s", e)
 
     return ok({
         "results": results,
         "serverTime": _iso(_now()),
     })
+
+
+def _payload_str(payload: dict, camel: str, snake: str) -> str:
+    """取 payload 里的关联 uuid。
+
+    客户端的本地实体用 camelCase（LocalTaskTag.taskUuid / LocalChecklistItem.taskUuid），
+    早期服务端只认 snake_case，于是 taskTag / checklistItems 的 op 一律被判为
+    "task_uuid required" 而 rejected。这里两种写法都接受。
+    """
+    value = payload.get(camel)
+    if not value:
+        value = payload.get(snake)
+    return value or ""
 
 
 async def _apply_op(
@@ -226,10 +249,13 @@ async def _apply_op(
                     if client_updated < server_updated:
                         tags = await svc._get_task_tags(existing.uuid)
                         total_cl, completed_cl = await svc._get_checklist_counts(existing.uuid)
+                        # _task_to_list_out 的第二个参数是 tag uuid 列表，不是 ORM 对象：
+                        # 直接传 Tag 对象会被 FastAPI 用 vars() 序列化，_sa_instance_state 会漏进响应
+                        tag_uuids = [t.uuid for t in tags]
                         return {
                             "status": "conflict",
                             "serverRecord": svc._task_to_list_out(
-                                existing, tags, total_cl, completed_cl,
+                                existing, tag_uuids, total_cl, completed_cl,
                             ),
                         }
 
@@ -329,11 +355,11 @@ async def _apply_op(
             return {}
 
     elif entity == "taskTag":
-        task_uuid = payload.get("task_uuid") or ""
-        tag_uuid = payload.get("tag_uuid") or ""
+        task_uuid = _payload_str(payload, "taskUuid", "task_uuid")
+        tag_uuid = _payload_str(payload, "tagUuid", "tag_uuid")
         if not task_uuid or not tag_uuid:
             raise ValidationException(
-                "task_uuid and tag_uuid required",
+                "taskUuid and tagUuid required",
                 code="VALIDATION_ERROR",
             )
         # 归属校验：task 必须属于 user_uuid
@@ -374,7 +400,10 @@ async def _apply_op(
             else:
                 db.add(TaskTag(task_uuid=task_uuid, tag_uuid=tag_uuid))
             await db.flush()
-            return {}
+            return {"serverRecord": {
+                "taskUuid": task_uuid,
+                "tagUuid": tag_uuid,
+            }}
         elif action == "delete":
             existing = (await db.execute(
                 select(TaskTag).where(
@@ -396,10 +425,10 @@ async def _apply_op(
                     "checklist uuid required",
                     code="VALIDATION_ERROR",
                 )
-            cl_task_uuid = payload.get("task_uuid") or ""
+            cl_task_uuid = _payload_str(payload, "taskUuid", "task_uuid")
             if not cl_task_uuid:
                 raise ValidationException(
-                    "task_uuid required",
+                    "taskUuid required",
                     code="VALIDATION_ERROR",
                 )
             cl_title = (payload.get("title") or "").strip()
@@ -451,7 +480,8 @@ async def _apply_op(
                 await db.flush()
                 return {"serverRecord": {
                     "uuid": existing.uuid,
-                    "task_uuid": existing.task_uuid,
+                    "taskUuid": existing.task_uuid,
+                    "task_uuid": existing.task_uuid,  # 兼容旧字段名
                     "title": existing.title,
                     "completed": existing.completed,
                     "sortOrder": existing.sort_order,
@@ -468,7 +498,8 @@ async def _apply_op(
             await db.refresh(item)
             return {"serverRecord": {
                 "uuid": item.uuid,
-                "task_uuid": item.task_uuid,
+                "taskUuid": item.task_uuid,
+                "task_uuid": item.task_uuid,  # 兼容旧字段名
                 "title": item.title,
                 "completed": item.completed,
                 "sortOrder": item.sort_order,

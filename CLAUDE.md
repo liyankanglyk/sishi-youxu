@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-**四时有序 (sishi-youxu)** —— 基于艾森豪威尔矩阵的个人任务管理工具。当前进度：Phase 0~4 + 4.5 全部完成；Phase 3 用户端前端 + Phase 5~6 待开发。
+**四时有序 (sishi-youxu)** —— 基于艾森豪威尔矩阵的个人任务管理工具。当前进度：Phase 0~4 + 4.5 全部完成；用户端前端（`web/`）主体已完成并换肤，同步引擎接线 + Phase 5~6 待开发。
 
 - **后端**: Python 3.12 + FastAPI + SQLAlchemy 2.0 (async) + MySQL (aiomysql) + Redis
 - **用户端**: Vue 3 + TypeScript + Vite + Pinia + Dexie.js（离线优先）
@@ -210,6 +210,14 @@ components/
 
 Pinia store 命名 `useXxxStore`，结构：`ref` 状态 + `computed` 派生 + `async actions`（含错误处理）。
 
+### 用户端前端现状（`web/`）
+
+- **样式层**：设计 token 集中在 `web/src/App.vue` 的 `:root` / `:root.dark`（灰阶紫调 + 四象限浅底 + 玻璃卡）。组件里不要直连写死色值，统一走 `--c-danger` / `--c-today` / `--c-week` / `--qN-accent` / `--*-soft` 等变量，深色模式才能跟着变。
+- **画布网格**：level 取 −2…2（每轴 5 档），步长 = 画布宽的 20%；卡片宽度用容器查询 `min(220px, 20cqw − 34px)` 跟随步长——卡片比格点宽就会压到相邻格点上。改档位必须同步改 `QuadrantCanvas.getGridStepPct()` 与 `TaskCard` 的 `cqw` 规则。
+- **数据加载**：`stores/task.ts` 的 `fetchFromServer` 按 `pageSize=100` 翻页拉全量；后端 pageSize 上限是 100，不传参数只会拿到前 20 条（`meta.hasMore` 必须处理）。
+- **拖拽**：卡片中心 = 光标位置 − 抓取偏移，直接映射成画布百分比；不要在拖拽坐标上再套 level→位置的 margin/range 映射，否则卡片会被"吸向"画布中心（边缘最大偏差可达 margin）。
+- **待接线**：`syncEngine.start()` 仍无调用点，`stores/task.ts` 仍是纯 REST 驱动（Dexie 只在登录时写了一条 authSession）。接线前先修 `web/src/lib/sync/engine.ts` 的三处：批次失败后 `syncing` 态卡死、`readLocalEntity` 只支持 task（tag/checklist 的冲突保护失效）、`resolveConflict('local')` 缺"本地强制"标记会反复冲突。
+
 ---
 
 ## 命名与提交规范
@@ -238,10 +246,10 @@ Git 分支：`main` `develop` `feat/<name>` `fix/<name>` `hotfix/<name>`
 | 0 | 项目骨架 | ✅ 已完成 |
 | 1 | 管理端核心（后端 + 前端） | ✅ 已完成 |
 | 2 | 用户端核心（后端 API：任务/标签/通知/反馈/同步） | ✅ 已完成 |
-| 3 | 认证与同步（多渠道登录、离线同步） | ⚠️ 后端完成 / 前端 0% |
+| 3 | 认证与同步（多渠道登录、离线同步） | ⚠️ 后端完成 / 前端登录与 UI 完成，**同步引擎未接线**（`syncEngine.start()` 无调用点） |
 | 4 | 管理端增强（敏感词、IP黑名单、公告、登录日志、内容管理） | ✅ 后端完成 / 前端完成 |
 | 4.5 | **安全加固**（传输加密 / 防越权 / 登录锁定 / 图形验证码） | ✅ 已完成 |
-| 5 | 用户端增强（批量、撤销重做、快捷键） | ❌ 未开始 |
+| 5 | 用户端增强（批量、撤销重做、快捷键） | ⚠️ 批量/撤销重做/快捷键已有实现，但撤销重做仍是「反向 API 调用」（重建任务会换 uuid、丢标签），待改成操作队列 |
 | 6 | 测试与部署（单元/E2E/CI/CD） | ⚠️ 烟雾 + 部分集成测试 |
 | 7 | 微信小程序扩展 | ⏸ 远期 |
 | 8 | 移动端（Capacitor） | ⏸ 远期 |

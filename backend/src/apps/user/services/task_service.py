@@ -604,9 +604,16 @@ class TaskService:
             )
 
         # 通过 Redis 进行幂等性检查
+        # key 必须带 user_uuid：否则不同用户用同一个 idempotencyKey 会读到对方的缓存结果，
+        # 结果里还带着别人的 taskUuids（sync 接口已修过同样的问题，这里要同步）
         redis = get_redis()
-        idem_key = build_key("idempotency", idempotency_key)
-        cached = await redis.get(idem_key)
+        idem_key = build_key("idempotency", user_uuid, idempotency_key)
+        cached = None
+        try:
+            cached = await redis.get(idem_key)
+        except Exception:
+            # Redis 不可用 → 退化为不幂等，而不是让整个批量操作 500
+            cached = None
         if cached is not None:
             if isinstance(cached, bytes):
                 cached = cached.decode("utf-8")
@@ -666,10 +673,18 @@ class TaskService:
         if not_found:
             result["notFoundUuids"] = not_found
 
+        # 先提交再写幂等缓存：顺序反了的话，一旦提交失败而缓存已写成"成功"，
+        # 客户端重试会命中缓存拿到成功结果，实际操作却从未落库。
+        await self.db.commit()
+
         # 缓存幂等结果（24 小时）
-        await redis.set(
-            idem_key, json.dumps(result, default=str), ex=_IDEMPOTENCY_TTL
-        )
+        try:
+            await redis.set(
+                idem_key, json.dumps(result, default=str), ex=_IDEMPOTENCY_TTL
+            )
+        except Exception:
+            # 缓存失败不影响本次操作结果，只是失去幂等保护
+            pass
 
         return result
 
@@ -693,6 +708,8 @@ class TaskService:
         self, task_uuid: str, user_uuid: str
     ) -> dict[str, Any]:
         """列出任务的检查项列表。"""
+        # 归属校验：task 必须属于当前用户，否则会列出他人任务的检查项
+        await self._get_task_or_404(task_uuid, user_uuid)
         stmt = (
             select(TaskChecklist)
             .where(
@@ -767,6 +784,8 @@ class TaskService:
         data: dict[str, Any],
     ) -> dict[str, Any]:
         """更新检查项。"""
+        # 归属校验：task 必须属于当前用户
+        await self._get_task_or_404(task_uuid, user_uuid)
         stmt = select(TaskChecklist).where(
             TaskChecklist.uuid == item_uuid,
             TaskChecklist.task_uuid == task_uuid,
@@ -807,6 +826,8 @@ class TaskService:
         self, task_uuid: str, item_uuid: str, user_uuid: str
     ) -> None:
         """软删除检查项。"""
+        # 归属校验：task 必须属于当前用户
+        await self._get_task_or_404(task_uuid, user_uuid)
         stmt = select(TaskChecklist).where(
             TaskChecklist.uuid == item_uuid,
             TaskChecklist.task_uuid == task_uuid,
