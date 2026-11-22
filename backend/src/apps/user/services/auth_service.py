@@ -128,8 +128,13 @@ class AuthService:
             "expires_in": int((access_exp - datetime.utcnow()).total_seconds()),
         }
 
-    async def _resolve_refresh_token(self, token: str) -> tuple[RefreshToken, dict[str, Any]]:
+    async def _resolve_refresh_token(
+        self, token: str, *, revoke_all_on_reuse: bool = True
+    ) -> tuple[RefreshToken, dict[str, Any]]:
         """解码 refresh_token 并查 DB。
+
+        revoke_all_on_reuse=True 用于 /tokens/refresh：检测到已吊销 token 被重复使用
+        视为泄露，吊销该用户全部会话。单设备登出必须传 False，否则会误伤其它设备。
 
         抛出：
         - AUTH_REFRESH_TOKEN_INVALID：解码失败 / 已吊销 / 不存在 / 已过期
@@ -161,7 +166,12 @@ class AuthService:
             )
         if record.revoked_at is not None:
             # 重复使用 → 全设备吊销（token 旋转防重放）
-            await self._revoke_all_refresh_tokens(record.user_uuid)
+            if revoke_all_on_reuse:
+                await self._revoke_all_refresh_tokens(record.user_uuid)
+                # 必须先提交再抛错：路由的 await db.commit() 在异常路径不会执行，
+                # 而 get_db 的 except 分支会 rollback —— 不提交的话这次吊销会被整体回滚，
+                # 防重放机制等于没做。
+                await self.db.commit()
             raise UnauthorizedException(
                 "refresh_token 已被吊销",
                 code=AuthErrorCode.REFRESH_TOKEN_INVALID,
@@ -283,7 +293,7 @@ class AuthService:
         }
 
     async def _login_password(self, payload: dict[str, Any]) -> User:
-        identifier = (payload.get("identifier") or "").strip()
+        identifier = (payload.get("identifier") or "").strip().lower()
         password = payload.get("password") or ""
         if not identifier or not password:
             raise ValidationException(
@@ -552,7 +562,9 @@ class AuthService:
     async def logout(self, refresh_token: str) -> dict[str, Any]:
         """幂等登出：撤销给定 refresh_token；找不到 / 已撤销都返回 200。"""
         try:
-            record, _ = await self._resolve_refresh_token(refresh_token)
+            # 单设备登出不能触发"重放即全设备吊销"，否则在一个已失效的设备上点登出
+            # 会把该用户所有会话踢下线（且这里的 except 会把它静默吞掉）。
+            record, _ = await self._resolve_refresh_token(refresh_token, revoke_all_on_reuse=False)
             record.revoked_at = datetime.utcnow()
             await self.db.flush()
             return {"revokedCount": 1}
@@ -940,9 +952,13 @@ class AuthService:
 
     @staticmethod
     def _extract_identifier(provider: str, payload: dict[str, Any]) -> str:
-        """从登录 payload 中提取用于锁定跟踪的标识符。"""
+        """从登录 payload 中提取用于锁定跟踪的标识符。
+
+        必须与注册时的归一方式一致（strip + lower）：Redis 的 login_fail key 区分大小写，
+        不归一的话换个大小写就能把失败计数清零、并绕过"失败 N 次后强制图形验证码"。
+        """
         if provider == "password":
-            return (payload.get("identifier") or "").strip()
+            return (payload.get("identifier") or "").strip().lower()
         elif provider == "phone_sms":
             return (payload.get("phone") or "").strip()
         elif provider == "email_code":

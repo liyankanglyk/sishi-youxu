@@ -95,18 +95,23 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function refresh() {
-    if (!refreshToken.value) throw new Error('No refresh token')
-    const { data } = await authApi.refresh(refreshToken.value)
+    const rt = refreshToken.value ?? localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN)
+    if (!rt) throw new Error('No refresh token')
+    const { data } = await authApi.refresh(rt)
     accessToken.value = data.access_token
-    refreshToken.value = data.refresh_token || data.refresh_token
+    // 后端不返回新 refresh_token 时要保留旧值；写成 `a || a` 会把会话变成不可刷新
+    refreshToken.value = data.refresh_token ?? rt
     persistTokens()
     return data
   }
 
   async function logout() {
     try {
-      if (refreshToken.value) {
-        await authApi.logout(refreshToken.value)
+      // 拦截器刷新 token 时只写 localStorage、不更新 store，
+      // 直接用 store 里的旧值会把已作废的 refresh_token 发给后端，服务端会话残留。
+      const rt = localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN) ?? refreshToken.value
+      if (rt) {
+        await authApi.logout(rt)
       }
     } catch {
       // 忽略登出过程中的错误

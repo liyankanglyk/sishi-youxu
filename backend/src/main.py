@@ -320,7 +320,7 @@ SWAGGER_UI_HTML = SWAGGER_UI_HTML.replace(
     json.dumps(SWAGGER_ZH_CN, ensure_ascii=False),
 )
 
-from src.core.config import settings
+from src.core.config import assert_production_safe, settings
 from src.core.database import close_db, init_db
 from src.core.deps import WsUser
 from src.core.logger import get_logger, setup_logging
@@ -343,6 +343,15 @@ async def lifespan(app: FastAPI):
         "starting %s v%s (env=%s, timezone=%s)",
         settings.APP_NAME, settings.APP_VERSION, settings.APP_ENV, settings.SERVER_TIMEZONE,
     )
+
+    # --- 配置自检：生产环境带 dev 后门直接拒绝启动 ---
+    assert_production_safe()
+    if settings.APP_ENV in {"dev", "test"}:
+        logger.warning(
+            "APP_ENV=%s：图形验证码答案与 /password/reset-request 的重置令牌会明文返回，"
+            "仅限本地联调，禁止部署到公网。",
+            settings.APP_ENV,
+        )
 
     # --- Database: probe only ---
     try:

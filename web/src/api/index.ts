@@ -79,6 +79,8 @@ apiClient.interceptors.response.use(
               if (originalRequest.headers) {
                 originalRequest.headers.Authorization = `Bearer ${token}`
               }
+              // 重放前也要标记，否则它再次 401 时会发起第二轮刷新
+              originalRequest._retry = true
               resolve(apiClient(originalRequest))
             },
             reject,
@@ -90,11 +92,19 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true
 
       try {
-        const { data } = await axios.post('/api/v1/auth/tokens/refresh', {
-          refresh_token: refreshToken,
-        })
-        const newAccessToken = data.data?.access_token || data.access_token
-        const newRefreshToken = data.data?.refresh_token || data.refresh_token
+        // 必须走 apiClient：裸 axios 不经过响应拦截器，
+        // 后端 HTTP 200 + {success:false} 时不会 reject，access_token 会变成 undefined
+        // 并被写成字符串 "undefined"，之后每个请求都带 Bearer undefined 一直 401。
+        const { data } = await apiClient.post<{ access_token: string; refresh_token?: string }>(
+          '/auth/tokens/refresh',
+          { refresh_token: refreshToken },
+        )
+        const newAccessToken = data?.access_token
+        const newRefreshToken = data?.refresh_token
+
+        if (typeof newAccessToken !== 'string' || !newAccessToken) {
+          throw new Error('刷新响应缺少 access_token')
+        }
 
         localStorage.setItem('access_token', newAccessToken)
         if (newRefreshToken) {
@@ -123,12 +133,14 @@ apiClient.interceptors.response.use(
 function clearAuthAndRedirect() {
   localStorage.removeItem('access_token')
   localStorage.removeItem('refresh_token')
+  // 与 authStore.clearAuth 对齐：user 键也要删，否则下次登录前守卫/头像会读到上一个人的资料
+  localStorage.removeItem('user')
   // 仅在不在登录/注册页时跳转
-  if (
-    window.location.pathname !== '/login' &&
-    window.location.pathname !== '/register'
-  ) {
-    window.location.href = '/login'
+  const path = window.location.pathname
+  if (path !== '/login' && path !== '/register') {
+    // 带上 redirect，重新登录后才能回到原页面（路由守卫就是这么写的）
+    const back = encodeURIComponent(path + window.location.search)
+    window.location.href = `/login?redirect=${back}`
   }
 }
 

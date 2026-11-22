@@ -98,3 +98,36 @@ def get_settings() -> Settings:
 
 
 settings = get_settings()
+
+# 与 Settings.JWT_SECRET 的默认值保持一致 —— 生产环境仍用这个值说明忘了配置
+DEFAULT_JWT_SECRET = "change-me-in-production"
+
+
+def production_config_problems(s: Settings | None = None) -> list[str]:
+    """列出生产环境不可接受的配置项；非 prod 环境返回空列表。"""
+    s = s or settings
+    if s.APP_ENV != "prod":
+        return []
+
+    problems: list[str] = []
+    if s.JWT_SECRET == DEFAULT_JWT_SECRET:
+        problems.append("JWT_SECRET 仍是默认占位符")
+    if s.DEBUG:
+        problems.append("DEBUG=true")
+    if s.WX_LOGIN_MOCK:
+        problems.append("WX_LOGIN_MOCK=true（微信 code 不校验，任意 code 可登录他人账号）")
+    if "*" in s.CORS_ORIGINS and s.CORS_ALLOW_CREDENTIALS:
+        problems.append("CORS_ORIGINS=* 与 CORS_ALLOW_CREDENTIALS=true 同时开启")
+    return problems
+
+
+def assert_production_safe(s: Settings | None = None) -> None:
+    """生产环境启动自检：配置不达标就拒绝启动。
+
+    这些后门本身是给 dev/test 用的（验证码明文返回答案、/password/reset-request
+    返回 debug_token、微信 mock 登录），但只要 APP_ENV 漏配成 dev，
+    任何人调一次重置请求就能拿到令牌接管账号 —— 所以宁可启动失败。
+    """
+    problems = production_config_problems(s)
+    if problems:
+        raise RuntimeError("生产环境配置不合格，拒绝启动：" + "；".join(problems))

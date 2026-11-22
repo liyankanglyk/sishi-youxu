@@ -236,16 +236,16 @@ async def check_login_locked(identifier: str, *, is_admin: bool = False) -> bool
         # 2. 查 Redis 失败计数
         fail_key = build_key("login_fail", identifier)
         fail_count_raw = await redis.get(fail_key)
-        if fail_count_raw is not None:
-            if int(fail_count_raw) >= max_failures:
-                # 失败次数已达阈值 → 补写锁定标记
-                await redis.set(lock_key, "1", ex=LOCKOUT_TTL)
-                return True
-            return False
+        if fail_count_raw is not None and int(fail_count_raw) >= max_failures:
+            # 失败次数已达阈值 → 补写锁定标记
+            await redis.set(lock_key, "1", ex=LOCKOUT_TTL)
+            return True
     except Exception:
-        pass  # Redis 不可用 → 回退到 DB
+        pass  # Redis 不可用 → 完全交给 DB
 
-    # 3. Redis 不可用时查 DB
+    # 3. Redis 没给出"已锁定"结论时以 DB 为准。
+    #    原来这里 Redis 计数未达阈值就直接 return False，Redis 被 flush/重启后
+    #    DB 里的 locked_until 再有效也不会拦住登录。多一次 DB 查询，登录是低频操作，可接受。
     return await _check_db_locked(identifier)
 
 
@@ -309,9 +309,13 @@ async def record_login_failure(identifier: str, *, is_admin: bool = False, ip: s
 
         remaining = max(0, max_failures - count)
     except Exception:
-        # Redis 不可用 → 回退到 DB 计数
+        # Redis 不可用 → 计数与锁定判定完全交给 DB
         remaining = 0
-        locked = await _record_db_failure(identifier, max_failures)
+
+    # DB 始终镜像一份。只在 Redis 异常时回退是不够的：Redis 重启/flush/换库后计数归零，
+    # 5 次阈值可以被无限重置，锁定也就形同虚设。
+    db_locked = await _record_db_failure(identifier, max_failures)
+    locked = locked or db_locked
 
     # IP 维度计数
     if ip:
