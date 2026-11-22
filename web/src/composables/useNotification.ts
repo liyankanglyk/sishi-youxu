@@ -2,7 +2,9 @@ import { ref, onUnmounted } from 'vue'
 import type { TaskOut } from '@/api/tasks'
 
 const NOTIFICATIONS_STORAGE_KEY = 'sishi-notifications'
-const NOTIFIED_KEY_PREFIX = 'sishi-notified-'
+/** 去重状态按 uuid 持久化且与日期无关，拆成「已过期」与「今天/快过期」两组 */
+const NEAR_EXPIRY_STORAGE_KEY = 'sishi-notified-near-expiry'
+const EXPIRED_STORAGE_KEY = 'sishi-notified-expired'
 
 /**
  * 通过 Web Notification API 实现本地到期提醒通知的组合式函数。
@@ -53,34 +55,57 @@ export function useNotification(getTasks: () => TaskOut[]) {
     }
   }
 
+  /** 本地日期差（天）：两端都归零到 0 点，避免 UTC 偏移导致凌晨漏报/误报。 */
+  function daysUntilDue(dueDate: string): number {
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+    const due = new Date(dueDate)
+    const dueDay = new Date(due.getFullYear(), due.getMonth(), due.getDate()).getTime()
+    return Math.round((dueDay - today) / 86_400_000)
+  }
+
+  function readNotified(key: string): Set<string> {
+    return new Set<string>(JSON.parse(localStorage.getItem(key) || '[]') as string[])
+  }
+
+  function writeNotified(key: string, ids: Set<string>) {
+    localStorage.setItem(key, JSON.stringify([...ids]))
+  }
+
   function checkAndNotify() {
     if (!enabled.value) return
 
-    const todayKey = new Date().toISOString().slice(0, 10)
-    const notifiedKey = NOTIFIED_KEY_PREFIX + todayKey
-    const notifiedIds = new Set(JSON.parse(localStorage.getItem(notifiedKey) || '[]') as string[])
-
-    const now = new Date()
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+    const near = readNotified(NEAR_EXPIRY_STORAGE_KEY)
+    const expired = readNotified(EXPIRED_STORAGE_KEY)
+    let nearDirty = false
+    let expiredDirty = false
 
     const tasks = getTasks()
     for (const task of tasks) {
-      if (task.completed || !task.dueDate || notifiedIds.has(task.uuid)) continue
-      const due = new Date(task.dueDate)
-      const dueDay = new Date(due.getFullYear(), due.getMonth(), due.getDate()).getTime()
+      if (task.completed || !task.dueDate || !task.uuid) continue
+      const days = daysUntilDue(task.dueDate)
+      if (days > 1) continue
 
-      if (dueDay <= today) {
-        const isOverdue = dueDay < today
+      const dueStr = new Date(task.dueDate).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+      if (days < 0) {
+        if (expired.has(task.uuid)) continue
+        notify(`⏰ 已过期：${task.title}`, `截止日期：${dueStr}`, `task-${task.uuid}-expired`)
+        expired.add(task.uuid)
+        expiredDirty = true
+      } else {
+        if (near.has(task.uuid)) continue
         notify(
-          `⏰ ${isOverdue ? '已过期' : '今天到期'}：${task.title}`,
-          task.note || `截止日期：${due.toLocaleDateString('zh-CN')}`,
-          `task-${task.uuid}-${todayKey}`,
+          days === 0 ? `⏰ 今天到期：${task.title}` : `⏰ 快过期：${task.title}`,
+          task.note || `截止日期：${dueStr}`,
+          `task-${task.uuid}-${days === 0 ? 'today' : 'soon'}`,
         )
-        notifiedIds.add(task.uuid)
+        near.add(task.uuid)
+        nearDirty = true
       }
     }
 
-    localStorage.setItem(notifiedKey, JSON.stringify([...notifiedIds]))
+    if (nearDirty) writeNotified(NEAR_EXPIRY_STORAGE_KEY, near)
+    if (expiredDirty) writeNotified(EXPIRED_STORAGE_KEY, expired)
   }
 
   function startPolling() {

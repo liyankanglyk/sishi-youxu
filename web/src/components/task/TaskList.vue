@@ -59,10 +59,10 @@ const mainFilters = [
 
 // ── 象限配置 ──
 const quadrantConfig: Record<string, { label: string; color: string }> = {
-  Q1: { label: '重要且紧急', color: '#DC2626' },
-  Q2: { label: '重要不紧急', color: '#16A34A' },
-  Q3: { label: '不重要紧急', color: '#2563EB' },
-  Q4: { label: '不重要不紧急', color: '#D97706' },
+  Q1: { label: '重要且紧急', color: 'var(--q1-accent)' },
+  Q2: { label: '重要不紧急', color: 'var(--q2-accent)' },
+  Q3: { label: '不重要紧急', color: 'var(--q3-accent)' },
+  Q4: { label: '不重要不紧急', color: 'var(--q4-accent)' },
 }
 
 const quadrantsOrder = ['Q1', 'Q2', 'Q3', 'Q4']
@@ -467,7 +467,7 @@ function handlePermanentDelete(uuid: string, e: Event) {
 
 .search-input:focus {
   border-color: var(--c-brand-500);
-  box-shadow: 0 0 0 2px rgba(46, 91, 255, 0.1);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--c-brand-500) 10%, transparent);
 }
 
 .search-input::placeholder {
@@ -922,7 +922,7 @@ function handlePermanentDelete(uuid: string, e: Event) {
 }
 
 .due-text.urgent {
-  color: #DC2626;
+  color: var(--c-danger);
   font-weight: 500;
 }
 
@@ -1042,7 +1042,7 @@ function handlePermanentDelete(uuid: string, e: Event) {
 }
 
 .perm-delete-btn:hover {
-  background: rgba(220, 38, 38, 0.08);
+  background: color-mix(in srgb, var(--c-danger) 8%, transparent);
 }
 
 /* ══════════════════════════════════════════ */

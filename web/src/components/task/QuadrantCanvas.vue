@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { reactive, ref, onMounted, onUnmounted } from 'vue'
 import { useTaskStore, type TaskEx } from '@/stores/task'
 import type { TaskOut } from '@/api/tasks'
 import TaskCard from '@/components/task/TaskCard.vue'
@@ -21,6 +21,31 @@ const emit = defineEmits<{
 const store = useTaskStore()
 
 const canvasRef = ref<HTMLElement | null>(null)
+
+/** 画布像素尺寸缓存 —— 避免每张卡片每次渲染都读 clientWidth 触发强制布局。 */
+const canvasSize = reactive({ w: 0, h: 0 })
+let canvasObserver: ResizeObserver | null = null
+
+function measureCanvas() {
+  const el = canvasRef.value
+  if (!el) return
+  canvasSize.w = el.clientWidth
+  canvasSize.h = el.clientHeight
+}
+
+onMounted(() => {
+  measureCanvas()
+  if (canvasRef.value && typeof ResizeObserver !== 'undefined') {
+    canvasObserver = new ResizeObserver(measureCanvas)
+    canvasObserver.observe(canvasRef.value)
+  }
+})
+
+onUnmounted(() => {
+  canvasObserver?.disconnect()
+  canvasObserver = null
+  cancelMoveFrame()
+})
 
 interface DragState {
   uuid: string | null
@@ -63,9 +88,14 @@ const DRAG_THRESHOLD = 4
 const CANVAS_MARGIN = 10
 const CANVAS_RANGE = 80
 
-const LEVEL_MIN = -4
-const LEVEL_MAX = 4
-const LEVEL_RANGE = LEVEL_MAX - LEVEL_MIN  // 8
+// 每轴 5 档（−2…2）：步长 = RANGE / RANGE_LEVELS = 20% 画布宽。
+// 原来是 ±4（步长 10% ≈ 99px），比标准档卡片最大宽 220px 还窄，相邻格点的卡片必然互相压叠。
+const LEVEL_MIN = -2
+const LEVEL_MAX = 2
+const LEVEL_RANGE = LEVEL_MAX - LEVEL_MIN  // 4
+
+/** 相邻格点间距占画布的百分比，卡片宽度与堆叠偏移都以它为上限。 */
+function getGridStepPct(): number { return getCanvasRange() / LEVEL_RANGE }
 
 // 移动端缩小 margin，让象限更宽
 const isMobile = window.matchMedia?.('(max-width: 767px)').matches ?? false
@@ -108,11 +138,11 @@ function tasksForQuadrant(qId: string): TaskEx[] {
 
 // ── 堆叠：相同 (u,i) 上的任务渲染为一摞卡片 —— 顶部卡片完全可见，
 //     下方的卡片以明显的对角偏移露出一角 ──
-const STACK_OFFSET_PX = 22 // 堆叠中相邻卡片之间的像素偏移
-const STACK_MAX_OFFSET_PX = 88 // 总偏移上限，避免偏离网格点过远
+const STACK_OFFSET_PX = 10 // 堆叠中相邻卡片之间的像素偏移
+const STACK_MAX_OFFSET_PX = 30 // 总偏移上限：必须小于格点间距，否则一摞卡会压到邻格
 
 // 移动端堆叠偏移缩小，防止卡片溢出象限
-const MOBILE_STACK_MAX = isMobile ? 56 : STACK_MAX_OFFSET_PX
+const MOBILE_STACK_MAX = isMobile ? 20 : STACK_MAX_OFFSET_PX
 
 // 缓存 key → 每个任务的 {stackIndex, total, z}
 let _stackCacheKey = ''
@@ -157,6 +187,59 @@ function stackEntry(task: TaskEx): { stackIndex: number; total: number; z: numbe
   return _stackMap.get(task.uuid) ?? { stackIndex: 0, total: 1, z: 1 }
 }
 
+/** 各密度档卡片的宽度上限与半高。实际渲染宽度还要受格点间距约束，见 cardHalf() 与 TaskCard 的 cqw 规则。 */
+const CARD_SIZE_PX: Record<string, { capW: number; h: number; mw: number; mh: number }> = {
+  compact: { capW: 110, h: 34, mw: 38, mh: 30 },
+  standard: { capW: 220, h: 34, mw: 55, mh: 30 },
+  detailed: { capW: 200, h: 46, mw: 70, mh: 40 },
+}
+
+const PANE_SAFE_PX = 6
+
+/**
+ * 卡片半尺寸。桌面宽度取「密度档上限」与「格点间距的一半 − 安全间距」的较小值，
+ * 保证相邻格点的卡片不再互相压叠；后者与 CSS 里 `calc(20cqw - 12px)` 是同一条规则。
+ */
+function cardHalf(): { w: number; h: number } {
+  const d = CARD_SIZE_PX[props.density ?? 'standard'] ?? CARD_SIZE_PX.standard
+  if (isMobile) return { w: d.mw, h: d.mh }
+  if (canvasSize.w <= 0) return { w: d.capW, h: d.h }
+  const stepHalf = (canvasSize.w * getGridStepPct()) / 100 / 2
+  // 17 = CSS 里给堆叠扇形预留的 34px 的一半，与 TaskCard 的 calc(20cqw - 34px) 对齐
+  return { w: Math.min(d.capW, stepHalf - 17), h: d.h }
+}
+
+/**
+ * wrapper 以 translate(-50%,-50%) 定位，left/top 即卡片中心。
+ * 只夹到画布边缘：level=0 本就落在正中轴线上，若按象限夹取会被整列推挤到相邻格点，反而造成重叠。
+ */
+function clampCenterToCanvas(
+  leftPct: number,
+  topPct: number,
+  extraX: number,
+  extraY: number,
+): { left: string; top: string } {
+  const cw = canvasSize.w
+  const ch = canvasSize.h
+  // 尺寸未知（首帧 / ResizeObserver 未就绪）时不夹取
+  if (cw <= 0 || ch <= 0) return { left: `calc(${leftPct}% + ${extraX}px)`, top: `calc(${topPct}% + ${extraY}px)` }
+
+  const { w: hw, h: hh } = cardHalf()
+
+  const rawX = (leftPct / 100) * cw + extraX
+  const rawY = (topPct / 100) * ch + extraY
+
+  const lo = PANE_SAFE_PX + hw
+  const hi = cw - PANE_SAFE_PX - hw
+  const loY = PANE_SAFE_PX + hh
+  const hiY = ch - PANE_SAFE_PX - hh
+
+  return {
+    left: `${((lo > hi ? cw / 2 : Math.min(Math.max(rawX, lo), hi)) / cw * 100).toFixed(3)}%`,
+    top: `${((loY > hiY ? ch / 2 : Math.min(Math.max(rawY, loY), hiY)) / ch * 100).toFixed(3)}%`,
+  }
+}
+
 /** 所有任务相对于整个画布定位 —— 与拖拽计算使用同一套坐标系。 */
 function taskStyle(task: TaskEx): Record<string, string> {
   if (drag.active && drag.uuid === task.uuid && drag.liveLeft && drag.liveTop) {
@@ -174,23 +257,24 @@ function taskStyle(task: TaskEx): Record<string, string> {
   const baseTopPct = levelToPercent(-task.importanceLevel)
 
   if (e.total <= 1) {
+    const pos = clampCenterToCanvas(baseLeftPct, baseTopPct, 0, 0)
     return {
-      left: `${baseLeftPct}%`,
-      top: `${baseTopPct}%`,
+      left: pos.left,
+      top: pos.top,
       zIndex: '2',
     }
   }
 
   // 堆叠时通过 CSS calc 增加像素偏移，使其在任何画布尺寸下都生效。
-  // 偏移量用 calc() 表示，在百分比位置上加上 px。
   // wrapper 设置了 transform: translate(-50%,-50%)，因此 left/top 指的是卡片中心。
   // 增加的 px 会让位于堆叠深处的卡片中心向右下方偏移。
   const px = Math.min(e.stackIndex * STACK_OFFSET_PX, MOBILE_STACK_MAX)
   // 堆叠更深的卡片在垂直方向上偏移略小（呈现更明显的扇形展开）
   const pxY = Math.min(e.stackIndex * (STACK_OFFSET_PX * 0.6), MOBILE_STACK_MAX * 0.6)
+  const pos = clampCenterToCanvas(baseLeftPct, baseTopPct, px, pxY)
   return {
-    left: `calc(${baseLeftPct}% + ${px}px)`,
-    top: `calc(${baseTopPct}% + ${pxY}px)`,
+    left: pos.left,
+    top: pos.top,
     zIndex: String(Math.max(e.z, drag.uuid === task.uuid ? 999 : 1)),
   }
 }
@@ -249,9 +333,31 @@ function onPointerDown(e: PointerEvent, uuid: string) {
   document.addEventListener('pointercancel', onPointerCancel)
 }
 
+/** pointermove 事件比渲染帧更密集，合并到每帧一次，避免长列表下掉帧表现为"迟滞"。 */
+let moveFrame: number | null = null
+let movePos: { x: number; y: number } | null = null
+
+function cancelMoveFrame() {
+  if (moveFrame !== null) {
+    cancelAnimationFrame(moveFrame)
+    moveFrame = null
+  }
+  movePos = null
+}
+
 function onPointerMove(e: PointerEvent) {
   if (!drag.uuid) return
-  const dist = Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY)
+  movePos = { x: e.clientX, y: e.clientY }
+  if (moveFrame !== null) return
+  moveFrame = requestAnimationFrame(() => {
+    moveFrame = null
+    const pos = movePos
+    if (pos && drag.uuid) applyDragMove(pos.x, pos.y)
+  })
+}
+
+function applyDragMove(clientX: number, clientY: number) {
+  const dist = Math.hypot(clientX - drag.startX, clientY - drag.startY)
   if (!drag.moved && dist < DRAG_THRESHOLD) return
 
   if (!drag.moved) {
@@ -273,16 +379,17 @@ function onPointerMove(e: PointerEvent) {
   const liveHeight = canvasRect.height
 
   // 卡片中心在画布像素坐标系中的位置
-  const cxCanvas = e.clientX - drag.offsetX - canvasRect.left
-  const cyCanvas = e.clientY - drag.offsetY - canvasRect.top
+  const cxCanvas = clientX - drag.offsetX - canvasRect.left
+  const cyCanvas = clientY - drag.offsetY - canvasRect.top
   const cxClamped = Math.max(0, Math.min(liveWidth, cxCanvas))
   const cyClamped = Math.max(0, Math.min(liveHeight, cyCanvas))
 
-  // 直接映射到画布百分比（精确跟随光标，不做 grid snap）
-  const rawLeftPct = getCanvasMargin() + (cxClamped / liveWidth) * getCanvasRange()
-  const rawTopPct = getCanvasMargin() + (cyClamped / liveHeight) * getCanvasRange()
+  // 卡片中心 = 光标位置减去抓取偏移，直接映射成画布百分比。
+  // 不能再套 margin/range —— 那是 level→位置 的映射；left 本身就是中心百分比，
+  // 再压缩一次会把卡片"吸向"画布中心，边缘最大偏差约等于 margin（8% ≈ 84px），即拖拽不跟手。
+  const rawLeftPct = (cxClamped / liveWidth) * 100
+  const rawTopPct = (cyClamped / liveHeight) * 100
 
-  // 用百分比定位，与静态定位坐标系完全一致
   drag.liveLeft = `${rawLeftPct}%`
   drag.liveTop = `${rawTopPct}%`
 
@@ -295,6 +402,7 @@ function onPointerMove(e: PointerEvent) {
 }
 
 function endDragCleanup() {
+  cancelMoveFrame()
   document.removeEventListener('pointermove', onPointerMove)
   document.removeEventListener('pointerup', onPointerUp)
   document.removeEventListener('pointercancel', onPointerCancel)
@@ -466,6 +574,8 @@ function handleTaskClick(task: TaskEx) {
   position: relative;
   height: 100%;
   width: 100%;
+  /* 卡片宽度按格点间距自适应的依据：cqw 在此解析为画布宽度的 1%，见 TaskCard 的 max-width */
+  container-type: inline-size;
 }
 
 /* ── 网格参考点（淡色 dot grid，9×9 坐标系视觉锚点） ── */
@@ -684,7 +794,7 @@ function handleTaskClick(task: TaskEx) {
   transition: background 0.12s;
 }
 .batch-btn:hover { background: rgba(255, 255, 255, 0.2); }
-.batch-btn.danger:hover { background: #DC2626; border-color: #DC2626; }
+.batch-btn.danger:hover { background: var(--c-danger); border-color: var(--c-danger); }
 
 .batch-cancel {
   padding: 4px 6px;

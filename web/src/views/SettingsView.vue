@@ -22,7 +22,7 @@ const tagsLoading = ref(false)
 const tagDialogVisible = ref(false)
 const editingTag = ref<TagOut | null>(null)
 const tagFormName = ref('')
-const tagFormColor = ref('#6366f1')
+const tagFormColor = ref('#A07CCB')
 const tagSaving = ref(false)
 
 const presetColors = [
@@ -43,7 +43,7 @@ async function fetchTags() {
 function openCreateTag() {
   editingTag.value = null
   tagFormName.value = ''
-  tagFormColor.value = '#6366f1'
+  tagFormColor.value = '#A07CCB'
   tagDialogVisible.value = true
 }
 
@@ -441,7 +441,7 @@ onMounted(fetchTags)
 }
 .text-btn:hover { background: var(--c-brand-50); }
 .text-btn.danger { color: var(--c-danger); }
-.text-btn.danger:hover { background: rgba(220, 38, 38, 0.06); }
+.text-btn.danger:hover { background: color-mix(in srgb, var(--c-danger) 6%, transparent); }
 
 .add-btn {
   font-size: 13px;
@@ -454,7 +454,7 @@ onMounted(fetchTags)
   cursor: pointer;
   transition: background 0.15s;
 }
-.add-btn:hover { background: rgba(46, 91, 255, 0.15); }
+.add-btn:hover { background: color-mix(in srgb, var(--c-brand-500) 15%, transparent); }
 
 .center-text {
   text-align: center;
@@ -586,7 +586,7 @@ kbd {
   transition: background 0.12s;
   border-radius: 12px;
 }
-.logout-btn:hover { background: rgba(220, 38, 38, 0.06); }
+.logout-btn:hover { background: color-mix(in srgb, var(--c-danger) 6%, transparent); }
 
 /* ══════════════════════════════════════════ */
 /* 标签对话框                                */

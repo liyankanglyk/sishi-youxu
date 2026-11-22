@@ -73,12 +73,12 @@ defineProps<{
 }
 
 .btn-danger {
-  background: rgba(220, 38, 38, 0.08);
+  background: color-mix(in srgb, var(--c-danger) 8%, transparent);
   color: var(--c-danger);
-  border: 1px solid rgba(220, 38, 38, 0.2);
+  border: 1px solid color-mix(in srgb, var(--c-danger) 20%, transparent);
 }
 .btn-danger:hover:not(:disabled) {
-  background: rgba(220, 38, 38, 0.15);
+  background: color-mix(in srgb, var(--c-danger) 15%, transparent);
 }
 
 .btn-ghost {

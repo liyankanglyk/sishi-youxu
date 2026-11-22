@@ -78,7 +78,10 @@
 └────────────────────────────┘
 ```
 
-**尺寸体系**：Header 56px | 象限分割线 1px --c-gray-200 | 卡片最大宽度 220px | 列表侧边栏 280px（可拖拽调节）
+**尺寸体系**：Header 56px | 象限分割线 1px --c-gray-200 | 卡片宽度 `min(220px, 格点间距 − 34px)` | 列表侧边栏 280px（可拖拽调节）
+
+> **卡片宽度必须跟着格点间距走**。格点间距 = 画布宽度 × 20%（见下），卡片再宽就会压到相邻格点的卡片上。
+> 桌面端实现用容器查询单位 `20cqw`（`cqw` = 画布宽度的 1%），与 `QuadrantCanvas.getGridStepPct()` 是同一条规则。
 
 ### 四象限画布 — 网格参考点
 
@@ -88,7 +91,12 @@
 - **主要点**：每 20px 一个，半径 1.4px，颜色 `--c-gray-500`，透明度 0.22
 - 深色模式：使用 `rgba(255,255,255,0.15)` / `rgba(255,255,255,0.22)`
 - `pointer-events: none` + `z-index: 0`，不干扰卡片交互
-- 作用：让 9×9 坐标系统直观可见；空画布时不会觉得空洞；拖拽卡片时能看到落点参考
+- 作用：让 5×5 坐标系统直观可见；空画布时不会觉得空洞；拖拽卡片时能看到落点参考
+
+> **为什么是 5×5 而不是 9×9**：level 取值 −2…2（每轴 5 档），`RANGE 80% ÷ 4 步` = 步长占画布 20%。
+> 早期用 −4…4（步长 10%，1440px 窗口下只有 99px），而标准档卡片最大 220px ——
+> 卡片比格子宽一倍，相邻格点的卡片必然互相压叠。档位收到 5 档后步长约 198px，
+> 卡片宽度按步长自适应即可排开。存量 level（±3/±4）在显示时收敛到最外圈，不改写数据。
 
 ### 任务列表 — 筛选与排序
 
@@ -334,7 +342,7 @@ TaskList 顶部搜索栏右侧只有 **一个 ⚙ 按钮**，点击展开**直�
 |------|---------|---------|
 | 紧凑 | 44px | 仅标题+完成状态 |
 | 标准 | 68px | 标题+标签+日期 |
-| 详细 | 90px | 标题+标签+日期+备注摘要 |
+| 详细 | 92px | 标题+级别(I/U)+标签+日期+备注摘要 |
 
 ---
 
@@ -370,25 +378,31 @@ QuadrantCanvas.vue（四象限容器，含 dot grid 网格点阵）| TaskList.vu
 
 ```css
 :root {
-  /* 灰阶 */
-  --c-gray-50: #FAFAFA; --c-gray-100: #F4F4F5; --c-gray-200: #E4E4E7;
-  --c-gray-300: #D4D4D8; --c-gray-400: #A1A1AA; --c-gray-500: #71717A;
-  --c-gray-600: #52525B; --c-gray-700: #3F3F46; --c-gray-800: #27272A;
-  --c-gray-900: #18181B;
-  /* 品牌色 */
-  --c-brand-50: #EEF2FF; --c-brand-500: #2E5BFF; --c-brand-600: #1E40D0;
+  /* 灰阶（紫调中性色，浅色底 #FFF8F6）*/
+  --c-gray-50: #FFF8F6; --c-gray-100: #F7F1F0; --c-gray-200: #ECE5E8;
+  --c-gray-300: #DCD4DE; --c-gray-400: #B6AEC0; --c-gray-500: #A6A0B2;
+  --c-gray-600: #867E98; --c-gray-700: #6B6480; --c-gray-800: #575068;
+  --c-gray-900: #4A4458;
+  /* 品牌色（紫）*/
+  --c-brand-50: #F5EFF9; --c-brand-500: #A07CCB; --c-brand-600: #8A63B8;
   /* 语义色 */
-  --c-success: #059669; --c-warning: #D97706; --c-danger: #DC2626;
-  /* 象限色（浅色）*/
-  --q1-bg: #F2A7B3; --q2-bg: #B5D9C4; --q3-bg: #C5D5E8; --q4-bg: #FBE4A0;
-  /* 象限色（深色）*/
-  --q1-bg-dark: #5C2B35; --q2-bg-dark: #2B4A35;
-  --q3-bg-dark: #2B3A5C; --q4-bg-dark: #5C4A1E;
+  --c-success: #34A06A; --c-warning: #D9822B; --c-danger: #E8615C;
+  --c-today: #EA580C; --c-week: #C97A1E;
+  /* 象限底色（浅色 / 深色）*/
+  --q1-bg: #FEF0F3; --q2-bg: #F0F8F3; --q3-bg: #F2F5FA; --q4-bg: #FFFCF2;
+  --q1-bg-dark: #33202A; --q2-bg-dark: #1E3027;
+  --q3-bg-dark: #1E2532; --q4-bg-dark: #302A1A;
+  /* 象限强调色（色点 / 角标）*/
+  --q1-accent: #E88090; --q2-accent: #7FB895;
+  --q3-accent: #8FAACB; --q4-accent: #E0BE45;
+  /* 截止状态底色 */
+  --danger-soft: #FDF0EF; --today-soft: #FFF7ED;
+  --week-soft: #FFF5E4; --month-soft: #F6F0FB;
   /* 字号/间距/圆角/阴影/动效/布局 */
   --t-display-size: 26px; --t-title-size: 18px; --t-body-size: 15px; --t-caption-size: 13px;
   --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 20px; --s-6: 24px;
-  --r-chip: 6px; --r-input: 10px; --r-button: 10px; --r-card: 14px; --r-modal: 20px;
-  --sh-pop: 0 1px 3px rgba(0,0,0,0.08); --sh-modal: 0 4px 16px rgba(0,0,0,0.12);
+  --r-chip: 8px; --r-input: 10px; --r-button: 12px; --r-card: 16px; --r-modal: 18px;
+  --sh-pop: 0 1px 3px rgba(74,68,88,0.09); --sh-modal: 0 6px 24px rgba(74,68,88,0.14);
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --glass-header: blur(20px) saturate(180%);

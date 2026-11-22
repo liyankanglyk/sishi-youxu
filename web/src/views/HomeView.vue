@@ -419,7 +419,7 @@ function handleImportDismiss() {
   transition: background 0.15s;
   z-index: 10;
 }
-.resize-handle:hover { background: rgba(46, 91, 255, 0.06); }
+.resize-handle:hover { background: color-mix(in srgb, var(--c-brand-500) 6%, transparent); }
 
 .resize-grip {
   width: 2px;
@@ -782,7 +782,7 @@ function handleImportDismiss() {
   background: var(--c-brand-500);
   color: #fff;
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(46, 91, 255, 0.35);
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--c-brand-500) 35%, transparent);
   z-index: 85;
   align-items: center;
   justify-content: center;
@@ -792,7 +792,7 @@ function handleImportDismiss() {
 
 .mobile-fab:active {
   transform: scale(0.92);
-  box-shadow: 0 2px 8px rgba(46, 91, 255, 0.25);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--c-brand-500) 25%, transparent);
 }
 
 @media (max-width: 767px) {

@@ -135,26 +135,26 @@ async function handleClick() {
 /* kind-specific 配色 */
 .sync-badge.kind-synced {
   color: var(--c-success, #059669);
-  border-color: rgba(5, 150, 105, 0.3);
-  background: rgba(5, 150, 105, 0.08);
+  border-color: color-mix(in srgb, var(--c-success) 30%, transparent);
+  background: color-mix(in srgb, var(--c-success) 8%, transparent);
 }
 .sync-badge.kind-synced:hover {
-  background: rgba(5, 150, 105, 0.15);
+  background: color-mix(in srgb, var(--c-success) 15%, transparent);
 }
 
 .sync-badge.kind-pending {
-  color: #92400E;
-  border-color: rgba(217, 119, 6, 0.3);
-  background: rgba(217, 119, 6, 0.08);
+  color: var(--c-week);
+  border-color: color-mix(in srgb, var(--c-warning) 30%, transparent);
+  background: color-mix(in srgb, var(--c-warning) 8%, transparent);
 }
 .sync-badge.kind-pending:hover {
-  background: rgba(217, 119, 6, 0.15);
+  background: color-mix(in srgb, var(--c-warning) 15%, transparent);
 }
 
 .sync-badge.kind-syncing {
   color: var(--c-brand-500, #2E5BFF);
-  border-color: rgba(46, 91, 255, 0.3);
-  background: rgba(46, 91, 255, 0.08);
+  border-color: color-mix(in srgb, var(--c-brand-500) 30%, transparent);
+  background: color-mix(in srgb, var(--c-brand-500) 8%, transparent);
 }
 
 .sync-badge.kind-offline {
@@ -163,16 +163,16 @@ async function handleClick() {
 
 .sync-badge.kind-conflict {
   color: var(--c-danger, #DC2626);
-  border-color: rgba(220, 38, 38, 0.35);
-  background: rgba(220, 38, 38, 0.08);
+  border-color: color-mix(in srgb, var(--c-danger) 35%, transparent);
+  background: color-mix(in srgb, var(--c-danger) 8%, transparent);
 }
 .sync-badge.kind-conflict:hover {
-  background: rgba(220, 38, 38, 0.15);
+  background: color-mix(in srgb, var(--c-danger) 15%, transparent);
 }
 
 .sync-badge.kind-error {
   color: var(--c-danger, #DC2626);
-  border-color: rgba(220, 38, 38, 0.35);
-  background: rgba(220, 38, 38, 0.08);
+  border-color: color-mix(in srgb, var(--c-danger) 35%, transparent);
+  background: color-mix(in srgb, var(--c-danger) 8%, transparent);
 }
 </style>

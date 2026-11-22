@@ -448,8 +448,8 @@ import { enqueueOp } from '@/lib/sync/repository'
   font-weight: 600;
   box-shadow: 0 0 0 1.5px currentColor;
 }
-.row-cell.row-local { color: #D97706; }
-.row-cell.row-local.selected { background: #FEF3C7; border-color: #D97706; }
+.row-cell.row-local { color: var(--c-warning); }
+.row-cell.row-local.selected { background: var(--week-soft); border-color: var(--c-warning); }
 .row-cell.row-remote { color: var(--c-brand-500, #2E5BFF); }
 .row-cell.row-remote.selected { background: var(--c-brand-50, #EEF2FF); border-color: var(--c-brand-500, #2E5BFF); }
 .row-cell.empty { color: var(--c-gray-400, #A1A1AA); font-style: italic; }
@@ -496,7 +496,7 @@ import { enqueueOp } from '@/lib/sync/repository'
   margin-right: 2px;
   vertical-align: middle;
 }
-.legend-local { background: #D97706; }
+.legend-local { background: var(--c-warning); }
 .legend-remote { background: var(--c-brand-500, #2E5BFF); margin-left: 8px; }
 
 .btn {

@@ -51,10 +51,10 @@ async function handleLogin() {
     <div class="auth-card">
       <div class="auth-logo">
         <svg viewBox="0 0 32 32" width="48" height="48" fill="none">
-          <rect x="2" y="2" width="12" height="12" rx="3" fill="#6366f1" opacity="0.9"/>
-          <rect x="18" y="2" width="12" height="12" rx="3" fill="#818cf8" opacity="0.7"/>
-          <rect x="2" y="18" width="12" height="12" rx="3" fill="#a5b4fc" opacity="0.6"/>
-          <rect x="18" y="18" width="12" height="12" rx="3" fill="#c7d2fe" opacity="0.5"/>
+          <rect x="2" y="2" width="12" height="12" rx="3" fill="var(--c-brand-500)" opacity="0.9"/>
+          <rect x="18" y="2" width="12" height="12" rx="3" fill="var(--q1-accent)" opacity="0.7"/>
+          <rect x="2" y="18" width="12" height="12" rx="3" fill="var(--q2-accent)" opacity="0.6"/>
+          <rect x="18" y="18" width="12" height="12" rx="3" fill="var(--q3-accent)" opacity="0.5"/>
         </svg>
       </div>
       <h1 class="auth-title">四时有序</h1>

@@ -69,10 +69,10 @@ export function getDueStatus(dueDate: string | null): 'overdue' | 'today' | 'thi
 }
 
 export const DUE_STATUS_CONFIG: Record<string, { color: string; bg: string; label: string }> = {
-  overdue:   { color: '#E8615C', bg: '#FEF2F2', label: '已过期' },
-  today:     { color: '#EA580C', bg: '#FFF7ED', label: '今天' },
-  thisWeek:  { color: '#D97706', bg: '#FFFBEB', label: '本周' },
-  thisMonth: { color: '#2563EB', bg: '#EFF6FF', label: '本月' },
+  overdue:   { color: 'var(--c-danger)', bg: 'var(--danger-soft)', label: '已过期' },
+  today:     { color: 'var(--c-today)', bg: 'var(--today-soft)', label: '今天' },
+  thisWeek:  { color: 'var(--c-week)', bg: 'var(--week-soft)', label: '本周' },
+  thisMonth: { color: 'var(--c-brand-500)', bg: 'var(--month-soft)', label: '本月' },
   normal:    { color: '', bg: '', label: '' },
   none:      { color: '', bg: '', label: '' },
 }
@@ -91,15 +91,17 @@ export const useTaskStore = defineStore('task', () => {
   const tagFilter = ref<string[]>([])
   const dueFilter = ref<'all' | 'overdue' | 'today' | 'thisWeek' | 'thisMonth'>('all')
   const selectedQuadrant = ref<string | null>(null)
-  // 恢复密度偏好；移动端默认 compact
+  // 移动端一律 compact：原来只在视口 change 事件里降级，手机首屏会沿用桌面上存的详细档，卡片叠成一团
+  const isMobileViewport = window.matchMedia?.('(max-width: 767px)').matches ?? false
+  const desktopDensityPref =
+    (localStorage.getItem('sishi-view-density-desktop') as 'compact' | 'standard' | 'detailed' | null) ||
+    (localStorage.getItem('sishi-view-density') as 'compact' | 'standard' | 'detailed' | null) ||
+    'standard'
   const viewDensity = ref<'compact' | 'standard' | 'detailed'>(
-    (localStorage.getItem('sishi-view-density') as any) ||
-    (window.matchMedia?.('(max-width: 767px)').matches ? 'compact' : 'standard'),
+    isMobileViewport ? 'compact' : desktopDensityPref,
   )
   // 单独保存桌面端偏好，避免移动端自动 compact 时覆盖
-  const _desktopDensity = ref<'compact' | 'standard' | 'detailed'>(
-    (localStorage.getItem('sishi-view-density-desktop') as any) || viewDensity.value,
-  )
+  const _desktopDensity = ref<'compact' | 'standard' | 'detailed'>(desktopDensityPref)
 
   // 视口变化时自动切换密度
   if (window.matchMedia) {
@@ -233,15 +235,29 @@ export const useTaskStore = defineStore('task', () => {
   const completedTasks = computed(() => serverTasks.value.filter(t => t.completed))
 
   // ── 数据加载 ──
+  /** 后端 pageSize 上限为 100，逐页取完，避免任务数超过一页时被静默截断。 */
+  const FETCH_PAGE_SIZE = 100
+  const FETCH_MAX_PAGES = 50
+
+  async function fetchAllTasks(): Promise<TaskOut[]> {
+    const acc: TaskOut[] = []
+    for (let page = 1; page <= FETCH_MAX_PAGES; page++) {
+      const { data } = await taskApi.list({ page, pageSize: FETCH_PAGE_SIZE })
+      acc.push(...(data?.items ?? []))
+      if (!data?.meta?.hasMore) break
+    }
+    return acc
+  }
+
   async function fetchFromServer() {
     loading.value = true
     error.value = null
     try {
-      const [taskData, tagData] = await Promise.all([
-        taskApi.list(),
+      const [allTasks, tagData] = await Promise.all([
+        fetchAllTasks(),
         tagApi.list(),
       ])
-      serverTasks.value = (taskData.data?.items ?? []) as TaskOut[]
+      serverTasks.value = allTasks
       tags.value = tagData.data?.items ?? []
     } catch (e: any) {
       error.value = e.message || '加载失败'

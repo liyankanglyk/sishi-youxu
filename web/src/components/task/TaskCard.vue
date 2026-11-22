@@ -229,19 +229,19 @@ const checklistProgress = computed(() => {
     opacity: 1;
   }
   18% {
-    box-shadow: 0 0 0 6px rgba(5, 150, 105, 0.28), 0 8px 24px rgba(5, 150, 105, 0.16);
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--c-success) 28%, transparent), 0 8px 24px color-mix(in srgb, var(--c-success) 16%, transparent);
     filter: brightness(1.1);
     transform: scale(var(--pulse-peak, 1.12));
     opacity: 1;
   }
   40% {
-    box-shadow: 0 0 0 10px rgba(5, 150, 105, 0.08), 0 12px 32px rgba(5, 150, 105, 0.06);
+    box-shadow: 0 0 0 10px color-mix(in srgb, var(--c-success) 8%, transparent), 0 12px 32px color-mix(in srgb, var(--c-success) 6%, transparent);
     filter: brightness(1.15);
     transform: scale(1.08);
     opacity: 0.8;
   }
   70% {
-    box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.04), 0 2px 6px rgba(0, 0, 0, 0.04);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--c-success) 4%, transparent), 0 2px 6px rgba(0, 0, 0, 0.04);
     filter: brightness(0.95);
     transform: scale(0.3);
     opacity: 0.15;
@@ -534,6 +534,17 @@ const checklistProgress = computed(() => {
   font-size: 10px;
 }
 
+/* ── 标准 / 详细：标题两行为止，第三行才省略 ── */
+.density-standard .card-title,
+.density-detailed .card-title {
+  white-space: normal;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 /* ── 详细 ── */
 .density-detailed {
   padding: 10px 12px;
@@ -544,8 +555,21 @@ const checklistProgress = computed(() => {
 
 .density-detailed .card-title {
   font-size: 13px;
-  white-space: normal;
-  word-break: break-word;
+}
+
+/* ── 桌面：卡片宽度不得超过格点间距 ──
+   20cqw = 画布宽度的 20% = 相邻格点间距（LEVEL ±2，RANGE 80% ÷ 4 步）。
+   留 34px 给堆叠扇形展开，否则同格的一摞卡会顶到邻列。
+   与 QuadrantCanvas 的 getGridStepPct() / cardHalf() 是同一条规则，改一处要同步改另一处。 */
+@media (min-width: 768px) {
+  .task-card {
+    max-width: min(var(--task-card-max-width), calc(20cqw - 34px));
+  }
+
+  .density-detailed {
+    min-width: min(140px, calc(20cqw - 34px));
+    max-width: min(200px, calc(20cqw - 34px));
+  }
 }
 
 /* ── 移动端：窄而高，纵向堆叠 ── */

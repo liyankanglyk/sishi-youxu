@@ -39,44 +39,58 @@ const taskStore = useTaskStore()
 }
 
 :root {
-  /* 灰阶 8 档 */
-  --c-gray-50: #FAFAFA;
-  --c-gray-100: #F4F4F5;
-  --c-gray-200: #E4E4E7;
-  --c-gray-300: #D4D4D8;
-  --c-gray-400: #A1A1AA;
-  --c-gray-500: #71717A;
-  --c-gray-600: #52525B;
-  --c-gray-700: #3F3F46;
-  --c-gray-800: #27272A;
-  --c-gray-900: #18181B;
+  /* 灰阶 8 档（原版紫调中性色） */
+  --c-gray-50: #FFF8F6;
+  --c-gray-100: #F7F1F0;
+  --c-gray-200: #ECE5E8;
+  --c-gray-300: #DCD4DE;
+  --c-gray-400: #B6AEC0;
+  --c-gray-500: #A6A0B2;
+  --c-gray-600: #867E98;
+  --c-gray-700: #6B6480;
+  --c-gray-800: #575068;
+  --c-gray-900: #4A4458;
 
   /* 品牌色 */
-  --c-brand-50: #EEF2FF;
-  --c-brand-500: #2E5BFF;
-  --c-brand-600: #1E40D0;
+  --c-brand-50: #F5EFF9;
+  --c-brand-500: #A07CCB;
+  --c-brand-600: #8A63B8;
 
   /* 语义色 */
-  --c-success: #059669;
-  --c-warning: #D97706;
-  --c-danger: #DC2626;
+  --c-success: #34A06A;
+  --c-warning: #D9822B;
+  --c-danger: #E8615C;
+
+  /* 象限强调色 */
+  --q1-accent: #E88090;
+  --q2-accent: #7FB895;
+  --q3-accent: #8FAACB;
+  --q4-accent: #E0BE45;
+
+  /* 截止状态底色 */
+  --danger-soft: #FDF0EF;
+  --today-soft: #FFF7ED;
+  --week-soft: #FFF5E4;
+  --month-soft: #F6F0FB;
+  --c-today: #EA580C;
+  --c-week: #C97A1E;
 
   /* 象限色（浅色）*/
-  --q1-bg: #F6DFE0;
-  --q2-bg: #DAE5F0;
-  --q3-bg: #F9EAD6;
-  --q4-bg: #DDE8DC;
+  --q1-bg: #FEF0F3;
+  --q2-bg: #F0F8F3;
+  --q3-bg: #F2F5FA;
+  --q4-bg: #FFFCF2;
 
   /* 表面色 */
   --surface-primary: #FFFFFF;
-  --surface-secondary: #FAFAFA;
-  --border-light: #F1F5F9;
+  --surface-secondary: #FFFBF9;
+  --border-light: #F1E9EC;
 
   /* 象限色（深色）*/
-  --q1-bg-dark: #42282D;
-  --q2-bg-dark: #1E283A;
-  --q3-bg-dark: #3D2E23;
-  --q4-bg-dark: #1C2D22;
+  --q1-bg-dark: #33202A;
+  --q2-bg-dark: #1E3027;
+  --q3-bg-dark: #1E2532;
+  --q4-bg-dark: #302A1A;
 
   /* 字号 */
   --t-display-size: 26px;
@@ -93,15 +107,15 @@ const taskStore = useTaskStore()
   --s-6: 24px;
 
   /* 圆角 */
-  --r-chip: 6px;
+  --r-chip: 8px;
   --r-input: 10px;
-  --r-button: 10px;
-  --r-card: 14px;
-  --r-modal: 20px;
+  --r-button: 12px;
+  --r-card: 16px;
+  --r-modal: 18px;
 
   /* 阴影 */
-  --sh-pop: 0 1px 3px rgba(0, 0, 0, 0.08);
-  --sh-modal: 0 4px 16px rgba(0, 0, 0, 0.12);
+  --sh-pop: 0 1px 3px rgba(74, 68, 88, 0.09);
+  --sh-modal: 0 6px 24px rgba(74, 68, 88, 0.14);
 
   /* 动效 */
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
@@ -111,8 +125,8 @@ const taskStore = useTaskStore()
   --glass-header: blur(20px) saturate(180%);
   --glass-modal-scrim: blur(8px);
   --glass-toast: blur(16px) saturate(160%);
-  --glass-bg-light: rgba(255, 255, 255, 0.72);
-  --glass-bg-dark: rgba(24, 24, 27, 0.72);
+  --glass-bg-light: rgba(255, 255, 255, 0.78);
+  --glass-bg-dark: rgba(26, 22, 32, 0.78);
 
   /* iOS 系统色板（标签 chip）*/
   --ios-blue: #007AFF;
@@ -130,7 +144,7 @@ const taskStore = useTaskStore()
   --task-card-max-width: 220px;
 
   /* 字体栈 */
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
   font-size: 16px;
   color: var(--c-gray-900);
   background: var(--c-gray-50);
@@ -140,38 +154,50 @@ const taskStore = useTaskStore()
 
 /* ── 深色主题 ── */
 :root.dark {
-  --c-gray-50: #18181B;
-  --c-gray-100: #27272A;
-  --c-gray-200: #3F3F46;
-  --c-gray-300: #52525B;
-  --c-gray-400: #71717A;
-  --c-gray-500: #A1A1AA;
-  --c-gray-600: #D4D4D8;
-  --c-gray-700: #E4E4E7;
-  --c-gray-800: #F4F4F5;
-  --c-gray-900: #FAFAFA;
+  --c-gray-50: #1A1620;
+  --c-gray-100: #221D2B;
+  --c-gray-200: #2A2433;
+  --c-gray-300: #3A3346;
+  --c-gray-400: #4E4660;
+  --c-gray-500: #8E86A2;
+  --c-gray-600: #A69EB2;
+  --c-gray-700: #C5BFD0;
+  --c-gray-800: #D8D2E2;
+  --c-gray-900: #E0DAE8;
 
-  --c-brand-50: #1E1B4B;
-  --c-brand-500: #818CF8;
-  --c-brand-600: #A5B4FC;
+  --c-brand-50: #2D2438;
+  --c-brand-500: #B8A0D8;
+  --c-brand-600: #C4A8D4;
 
-  --c-success: #34D399;
-  --c-warning: #FBBF24;
-  --c-danger: #F87171;
+  --c-success: #4FB286;
+  --c-warning: #E0A458;
+  --c-danger: #F08A86;
+
+  --q1-accent: #C97A87;
+  --q2-accent: #86B89A;
+  --q3-accent: #9AB5D2;
+  --q4-accent: #C9B468;
+
+  --danger-soft: #3B2226;
+  --today-soft: #38281C;
+  --week-soft: #33291A;
+  --month-soft: #2D2438;
+  --c-today: #F5A26B;
+  --c-week: #E0B878;
 
   --q1-bg: var(--q1-bg-dark);
   --q2-bg: var(--q2-bg-dark);
   --q3-bg: var(--q3-bg-dark);
   --q4-bg: var(--q4-bg-dark);
 
-  --sh-pop: 0 1px 3px rgba(0, 0, 0, 0.25);
-  --sh-modal: 0 4px 16px rgba(0, 0, 0, 0.35);
+  --sh-pop: 0 1px 3px rgba(0, 0, 0, 0.30);
+  --sh-modal: 0 6px 24px rgba(0, 0, 0, 0.45);
 
   --glass-bg-light: var(--glass-bg-dark);
 
-  --surface-primary: #1E1E24;
-  --surface-secondary: #18181B;
-  --border-light: #2A2A32;
+  --surface-primary: #2A2433;
+  --surface-secondary: #221D2B;
+  --border-light: #302A3A;
 
   color-scheme: dark;
 }

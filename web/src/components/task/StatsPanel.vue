@@ -44,10 +44,10 @@ const quadrantDistribution = computed(() => {
 const maxQuadrant = computed(() => Math.max(...Object.values(quadrantDistribution.value), 1))
 
 const quadrants = [
-  { key: 'Q1', label: '重要且紧急', color: '#DC2626', bg: 'rgba(220,38,38,0.08)' },
-  { key: 'Q2', label: '重要不紧急', color: '#16A34A', bg: 'rgba(22,163,74,0.08)' },
-  { key: 'Q3', label: '紧急不重要', color: '#2563EB', bg: 'rgba(37,99,235,0.08)' },
-  { key: 'Q4', label: '不重要不紧急', color: '#D97706', bg: 'rgba(217,119,6,0.08)' },
+  { key: 'Q1', label: '重要且紧急', color: 'var(--q1-accent)', bg: 'color-mix(in srgb, var(--q1-accent) 12%, transparent)' },
+  { key: 'Q2', label: '重要不紧急', color: 'var(--q2-accent)', bg: 'color-mix(in srgb, var(--q2-accent) 12%, transparent)' },
+  { key: 'Q3', label: '紧急不重要', color: 'var(--q3-accent)', bg: 'color-mix(in srgb, var(--q3-accent) 12%, transparent)' },
+  { key: 'Q4', label: '不重要不紧急', color: 'var(--q4-accent)', bg: 'color-mix(in srgb, var(--q4-accent) 12%, transparent)' },
 ]
 
 // ── 近 7 天趋势 ──
@@ -166,8 +166,8 @@ function toggleDay(key: string) {
 
 function qColor(t: { urgencyLevel: number; importanceLevel: number }): string {
   const q = getQuadrant(t.urgencyLevel, t.importanceLevel)
-  const map: Record<string, string> = { Q1: '#DC2626', Q2: '#16A34A', Q3: '#2563EB', Q4: '#D97706' }
-  return map[q] || '#999'
+  const map: Record<string, string> = { Q1: 'var(--q1-accent)', Q2: 'var(--q2-accent)', Q3: 'var(--q3-accent)', Q4: 'var(--q4-accent)' }
+  return map[q] || 'var(--c-gray-400)'
 }
 
 // ── 紧急-重要 5×5 矩阵热力图 ──
@@ -257,8 +257,8 @@ const animActive = useAnimatedNumber(() => activeCount.value)
             <svg class="donut-chart" viewBox="0 0 100 100">
               <defs>
                 <linearGradient id="donutGrad" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0%" stop-color="#6366f1" />
-                  <stop offset="100%" stop-color="#10b981" />
+                  <stop offset="0%" stop-color="var(--c-brand-500)" />
+                  <stop offset="100%" stop-color="var(--c-success)" />
                 </linearGradient>
               </defs>
               <circle class="donut-track" cx="50" cy="50" r="38"
@@ -579,9 +579,9 @@ const animActive = useAnimatedNumber(() => activeCount.value)
   border-radius: 20px;
   line-height: 1.5;
 }
-.pill-overdue { background: rgba(220,38,38,0.1); color: #DC2626; }
-.pill-today   { background: rgba(234,88,12,0.1); color: #EA580C; }
-.pill-active  { background: rgba(37,99,235,0.08); color: #2563EB; }
+.pill-overdue { background: var(--danger-soft); color: var(--c-danger); }
+.pill-today   { background: var(--today-soft); color: var(--c-today); }
+.pill-active  { background: var(--month-soft); color: var(--c-brand-500); }
 
 /* ═══════════ 象限分布 ═══════════ */
 .quadrant-bars {
@@ -820,9 +820,9 @@ const animActive = useAnimatedNumber(() => activeCount.value)
   border-radius: 50%;
   flex-shrink: 0;
 }
-.cal-dot.od { background: #DC2626; }
-.cal-dot.du { background: #2563EB; }
-.cal-dot.dn { background: #16A34A; }
+.cal-dot.od { background: var(--c-danger); }
+.cal-dot.du { background: var(--c-brand-500); }
+.cal-dot.dn { background: var(--c-success); }
 
 /* 图例 */
 .cal-legend {
@@ -846,9 +846,9 @@ const animActive = useAnimatedNumber(() => activeCount.value)
   height: 6px;
   border-radius: 50%;
 }
-.cl-overdue { background: #DC2626; }
-.cl-due     { background: #2563EB; }
-.cl-done    { background: #16A34A; }
+.cl-overdue { background: var(--c-danger); }
+.cl-due     { background: var(--c-brand-500); }
+.cl-done    { background: var(--c-success); }
 
 /* 可点击日期 */
 .cal-clickable {

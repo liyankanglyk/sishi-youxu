@@ -45,7 +45,7 @@ const renderedNote = computed(() => {
 // ── 内联创建标签 ──
 const isNewTagOpen = ref(false)
 const newTagName = ref('')
-const newTagColor = ref('#6366f1')
+const newTagColor = ref('#A07CCB')
 const newTagSaving = ref(false)
 const presetColors = ['#007AFF', '#34C759', '#5856D6', '#FF9500', '#FFCC00', '#5AC8FA', '#FF2D55', '#AF52DE']
 
@@ -59,7 +59,7 @@ async function createTagInline() {
       selectedTags.value.push(data.uuid)
     }
     newTagName.value = ''
-    newTagColor.value = '#6366f1'
+    newTagColor.value = '#A07CCB'
     isNewTagOpen.value = false
   } catch (e: any) {
     toast.error(e.message || '创建标签失败')
@@ -702,7 +702,7 @@ function handleClose() {
   justify-content: center;
   flex-shrink: 0;
 }
-.remove-btn:hover { color: var(--c-danger); background: rgba(220, 38, 38, 0.08); }
+.remove-btn:hover { color: var(--c-danger); background: color-mix(in srgb, var(--c-danger) 8%, transparent); }
 
 /* 备注 */
 .note-input {

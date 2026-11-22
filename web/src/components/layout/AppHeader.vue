@@ -180,11 +180,11 @@ function handleImport() { ui.triggerImport() }
     <!-- Logo -->
     <router-link to="/" class="logo" :class="{ 'logo-hide': ui.isMobile && ui.showMobileSearch }">
       <svg class="logo-icon" viewBox="0 0 44 44" width="28" height="28" fill="none" aria-hidden="true">
-        <rect x="2" y="2" width="40" height="40" rx="9" :fill="ui.theme === 'dark' ? '#27272A' : '#18181B'" />
-        <rect x="4.5" y="4.5" width="16" height="16" rx="4.5" fill="#DAE5F0" />
-        <rect x="23.5" y="4.5" width="16" height="16" rx="4.5" fill="#F6DFE0" />
-        <rect x="4.5" y="23.5" width="16" height="16" rx="4.5" fill="#DDE8DC" />
-        <rect x="23.5" y="23.5" width="16" height="16" rx="4.5" fill="#F9EAD6" />
+        <rect x="2" y="2" width="40" height="40" rx="9" fill="var(--c-gray-900)" />
+        <rect x="4.5" y="4.5" width="16" height="16" rx="4.5" fill="var(--q2-bg)" />
+        <rect x="23.5" y="4.5" width="16" height="16" rx="4.5" fill="var(--q1-bg)" />
+        <rect x="4.5" y="23.5" width="16" height="16" rx="4.5" fill="var(--q4-bg)" />
+        <rect x="23.5" y="23.5" width="16" height="16" rx="4.5" fill="var(--q3-bg)" />
       </svg>
       <span class="logo-text">四时有序</span>
     </router-link>
@@ -1012,13 +1012,13 @@ function handleImport() { ui.triggerImport() }
   background: var(--c-brand-50);
 }
 .notif-item.unread:hover {
-  background: #E8EDFF;
+  background: color-mix(in srgb, var(--c-brand-500) 14%, transparent);
 }
 :root.dark .notif-item.unread {
-  background: rgba(46, 91, 255, 0.08);
+  background: color-mix(in srgb, var(--c-brand-500) 8%, transparent);
 }
 :root.dark .notif-item.unread:hover {
-  background: rgba(46, 91, 255, 0.13);
+  background: color-mix(in srgb, var(--c-brand-500) 13%, transparent);
 }
 
 .notif-item-icon {
@@ -1073,7 +1073,7 @@ function handleImport() { ui.triggerImport() }
 }
 .notif-kind-badge.task_reminder {
   color: var(--c-warning);
-  background: rgba(217, 119, 6, 0.08);
+  background: color-mix(in srgb, var(--c-warning) 8%, transparent);
 }
 
 .notif-item-body {
@@ -1131,7 +1131,7 @@ function handleImport() { ui.triggerImport() }
 }
 .notif-delete-btn:hover {
   color: var(--c-danger);
-  background: rgba(220, 38, 38, 0.08);
+  background: color-mix(in srgb, var(--c-danger) 8%, transparent);
 }
 /* 当存在删除按钮时，将未读小圆点向左推 */
 .notif-item .notif-delete-btn ~ .notif-unread-dot {
@@ -1372,7 +1372,7 @@ function handleImport() { ui.triggerImport() }
 .menu-badge-on {
   margin-left: auto;
   font-size: 11px;
-  background: rgba(5, 150, 105, 0.1);
+  background: color-mix(in srgb, var(--c-success) 10%, transparent);
   color: var(--c-success);
   padding: 2px 8px;
   border-radius: 10px;
