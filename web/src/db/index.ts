@@ -64,7 +64,7 @@ export interface PendingOp {
   id?: number
   opId: string
   entityType: 'task' | 'tag' | 'taskTag' | 'checklistItems'
-  opType: 'upsert' | 'delete'
+  opType: 'upsert' | 'delete' | 'restore'
   entityUuid: string
   payload: Record<string, unknown>
   createdAt: string

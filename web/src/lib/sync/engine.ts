@@ -60,8 +60,32 @@ class SyncEngine {
   private pushFailStreak = 0
   /** pull 连续失败次数 */
   private pullFailStreak = 0
+  /** 本次同步周期里被服务端拒绝的操作（拒绝是永久性的，不会自动重试） */
+  private lastRejection: string | null = null
+
   /** 下次允许同步的最早时间（用于 backoff） */
   private nextAllowedAt = 0
+
+  /** 本地数据变更通知（push/pull 完成后触发，UI 据此重读 Dexie 刷新视图） */
+  private dataListeners = new Set<() => void>()
+
+  /** 订阅本地数据变更，返回取消订阅函数 */
+  onDataChanged(fn: () => void): () => void {
+    this.dataListeners.add(fn)
+    return () => {
+      this.dataListeners.delete(fn)
+    }
+  }
+
+  private notifyDataChanged(): void {
+    for (const fn of this.dataListeners) {
+      try {
+        fn()
+      } catch (e) {
+        console.warn('[sync] data listener failed:', e)
+      }
+    }
+  }
 
   // ===========================================================================
   // 公共 API
@@ -119,10 +143,13 @@ class SyncEngine {
         throw e
       }
       this.state.lastSyncedAt = new Date().toISOString()
-      this.state.lastError = null
+      // 周期内若有操作被服务端拒绝，保留原因（不能被"同步成功"覆盖掉）
+      this.state.lastError = this.lastRejection ?? null
       this.pushFailStreak = 0
       this.pullFailStreak = 0
       this.state.status = 'idle'
+      // 本地数据可能已被服务端更新 → 通知 UI 重读
+      this.notifyDataChanged()
     } catch (e: any) {
       this.state.lastError = e?.message ?? String(e)
       this.state.status = 'error'
@@ -290,6 +317,7 @@ class SyncEngine {
   }
 
   private async pushAll(): Promise<void> {
+    this.lastRejection = null
     let ops = await repo.getPendingOps()
     ops = ops.filter((o) => o.status === 'pending' || o.status === 'failed')
     if (ops.length === 0) return
@@ -349,7 +377,10 @@ class SyncEngine {
 
       if (r.status === 'applied') {
         if (r.serverRecord) {
-          await this.applyServerRecord(op.entityType, r.serverRecord, false)
+          // force=true：这条 serverRecord 就是我们刚推上去的那次改动的回执，
+          // 本地记录本来还是 pending 状态，若走 pending-guard 会把自己刚推成功的
+          // 改动判成冲突（实测会一直显示"1 项冲突"）
+          await this.applyServerRecord(op.entityType, r.serverRecord, true)
         }
         if (op.id != null) await repo.deleteOp(op.id)
       } else if (r.status === 'conflict') {
@@ -374,9 +405,11 @@ class SyncEngine {
         })
         if (op.id != null) await repo.updateOpStatus(op.id, 'conflict', r.reason)
       } else {
-        if (op.id != null) {
-          await repo.updateOpStatus(op.id, 'failed', r.reason ?? 'rejected')
-        }
+        // 被服务端拒绝是永久性的（字段校验不通过、归属不匹配等），再重试也不会成功。
+        // 原来把它标成 failed 留在队列里，而取队列包含 failed → 会被无限重试。
+        if (op.id != null) await repo.deleteOp(op.id)
+        this.lastRejection = r.reason ?? '服务端拒绝了该操作'
+        this.state.lastError = this.lastRejection
       }
     }
   }

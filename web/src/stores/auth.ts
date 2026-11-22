@@ -2,6 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { authApi, type UserOut } from '@/api/auth'
 import { db } from '@/db'
+import { syncEngine } from '@/lib/sync/engine'
+import { useTaskStore } from '@/stores/task'
 
 const STORAGE_KEYS = {
   ACCESS_TOKEN: 'access_token',
@@ -57,6 +59,25 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // ── 操作方法 ──
+
+  /** 登录/注册成功后：启动离线同步并加载数据（本地先出画面，再联网拉全量）。 */
+  async function startSync() {
+    const taskStore = useTaskStore()
+    taskStore.bindSyncEngine()
+    await taskStore.refreshFromLocal()
+    void syncEngine.start()
+    void taskStore.bootstrap()
+  }
+
+  /** 登出：停引擎并清空本地数据，否则下一个账号登录会看到上一个人的缓存。 */
+  async function stopSync() {
+    try {
+      await syncEngine.clearLocal()
+    } catch (e) {
+      console.warn('[auth] 清理本地数据失败:', e)
+    }
+  }
+
   async function login(
     provider: string,
     payload: Record<string, unknown>,
@@ -77,6 +98,7 @@ export const useAuthStore = defineStore('auth', () => {
         expiresAt: new Date(Date.now() + data.expires_in * 1000).toISOString(),
       })
     } catch { /* Dexie 可能尚未打开 */ }
+    await startSync()
     return data
   }
 
@@ -91,6 +113,7 @@ export const useAuthStore = defineStore('auth', () => {
     accessToken.value = data.access_token
     refreshToken.value = data.refresh_token
     persistTokens()
+    await startSync()
     return data
   }
 
@@ -117,6 +140,8 @@ export const useAuthStore = defineStore('auth', () => {
       // 忽略登出过程中的错误
     } finally {
       clearAuth()
+      // 清掉本地缓存与待同步队列，否则下一个账号登录会看到/推走上一个人的数据
+      await stopSync()
     }
   }
 
@@ -126,6 +151,7 @@ export const useAuthStore = defineStore('auth', () => {
     accessToken.value = data.access_token
     refreshToken.value = data.refresh_token
     persistTokens()
+    await startSync()
     return data
   }
 
@@ -133,6 +159,7 @@ export const useAuthStore = defineStore('auth', () => {
     await authApi.changePassword(oldPassword, newPassword)
     // 强制重新登录：清空 token，使用户必须再次登录
     clearAuth()
+    await stopSync()
   }
 
   return {

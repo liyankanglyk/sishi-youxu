@@ -6,6 +6,7 @@ import { useTaskStore } from '@/stores/task'
 import { useUiStore } from '@/stores/ui'
 import { notificationApi, type NotificationOut } from '@/api/notifications'
 import { useToast } from '@/composables/useToast'
+import SyncStatusBadge from '@/components/common/SyncStatusBadge.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -285,6 +286,8 @@ function handleImport() { ui.triggerImport() }
           {{ ui.theme === 'dark' ? '☀️' : '🌙' }}
         </button>
 
+        <SyncStatusBadge />
+
         <div class="notif-trigger">
           <button
             class="icon-btn notification-btn"
@@ -385,6 +388,8 @@ function handleImport() { ui.triggerImport() }
       </button>
 
       <!-- 通知铃铛 -->
+      <SyncStatusBadge />
+
       <button
         class="icon-btn mobile-notif-btn"
         :class="{ 'has-unread': unreadCount > 0 }"

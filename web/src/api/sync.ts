@@ -3,9 +3,11 @@ import apiClient from './index'
 export interface SyncOp {
   opId: string
   entity: 'task' | 'tag' | 'taskTag' | 'checklistItems'
-  action: 'upsert' | 'delete'
+  action: 'upsert' | 'delete' | 'restore'
   payload: Record<string, unknown>
   clientTs: number
+  /** 冲突已由用户裁决为「保留本地」时置 true：服务端跳过版本冲突检测 */
+  force?: boolean
 }
 
 export interface PushOpResult {

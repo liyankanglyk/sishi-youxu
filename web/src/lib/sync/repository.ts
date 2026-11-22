@@ -237,18 +237,6 @@ export async function putChecklistItem(item: Partial<LocalChecklistItem> & { uui
   return merged
 }
 
-export async function softDeleteChecklistItem(uuid: string): Promise<void> {
-  const existing = await db.checklistItems.get(uuid)
-  if (!existing) return
-  await db.checklistItems.put({
-    ...existing,
-    deletedAt: nowISO(),
-    syncStatus: 'pending',
-    version: existing.version + 1,
-    updatedAt: nowISO(),
-  })
-}
-
 export async function overwriteChecklistFromServer(record: Record<string, unknown>): Promise<void> {
   const uuid = record.uuid as string
   if (!uuid) return
@@ -267,6 +255,50 @@ export async function overwriteChecklistFromServer(record: Record<string, unknow
   })
 }
 
+export async function getAllTaskTags(): Promise<LocalTaskTag[]> {
+  return db.taskTags.toArray()
+}
+
+export async function getAllChecklistItems(): Promise<LocalChecklistItem[]> {
+  return db.checklistItems.toArray()
+}
+
+/** 写单条任务-标签关联 */
+export async function putTaskTag(taskUuid: string, tagUuid: string): Promise<void> {
+  await db.taskTags.put({ taskUuid, tagUuid })
+}
+
+/** 删除单条任务-标签关联 */
+export async function deleteTaskTag(taskUuid: string, tagUuid: string): Promise<void> {
+  await db.taskTags.where({ taskUuid, tagUuid }).delete()
+}
+
+/** 软删除检查项（与服务端软删语义一致） */
+export async function softDeleteChecklistItem(uuid: string): Promise<void> {
+  const existing = await db.checklistItems.get(uuid)
+  if (!existing) return
+  await db.checklistItems.put({
+    ...existing,
+    deletedAt: nowISO(),
+    syncStatus: 'pending',
+    version: existing.version + 1,
+    updatedAt: nowISO(),
+  })
+}
+
+/** 恢复被软删的任务（撤销删除用；uuid 不变，服务端走 restore 动作） */
+export async function restoreTask(uuid: string): Promise<void> {
+  const existing = await db.tasks.get(uuid)
+  if (!existing) return
+  await db.tasks.put({
+    ...existing,
+    deletedAt: null,
+    syncStatus: 'pending',
+    version: existing.version + 1,
+    updatedAt: nowISO(),
+  })
+}
+
 // =============================================================================
 // PendingOps 队列
 // =============================================================================
@@ -278,7 +310,7 @@ export async function overwriteChecklistFromServer(record: Record<string, unknow
  */
 export async function enqueueOp(
   entityType: EntityType,
-  opType: 'upsert' | 'delete',
+  opType: 'upsert' | 'delete' | 'restore',
   entityUuid: string,
   payload: Record<string, unknown>,
   options?: { force?: boolean },

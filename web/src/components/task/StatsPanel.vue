@@ -6,9 +6,9 @@ const store = useTaskStore()
 const activeTab = ref<'overview' | 'activity'>('overview')
 
 // ── 基础统计 ──
-const activeCount = computed(() => store.serverTasks.filter(t => !t.completed).length)
-const completedCount = computed(() => store.serverTasks.filter(t => t.completed).length)
-const totalCount = computed(() => store.serverTasks.length)
+const activeCount = computed(() => store.tasks.filter(t => !t.completed).length)
+const completedCount = computed(() => store.tasks.filter(t => t.completed).length)
+const totalCount = computed(() => store.tasks.length)
 const completionRate = computed(() => {
   if (!totalCount.value) return 0
   return Math.round((completedCount.value / totalCount.value) * 100)
@@ -16,7 +16,7 @@ const completionRate = computed(() => {
 
 const overdueCount = computed(() => {
   const today = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate())
-  return store.serverTasks.filter(t => {
+  return store.tasks.filter(t => {
     if (!t.dueDate || t.completed) return false
     return new Date(t.dueDate) < today
   }).length
@@ -24,7 +24,7 @@ const overdueCount = computed(() => {
 
 const todayCount = computed(() => {
   const today = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime()
-  return store.serverTasks.filter(t => {
+  return store.tasks.filter(t => {
     if (!t.dueDate || t.completed) return false
     const dueDay = new Date(new Date(t.dueDate).getFullYear(), new Date(t.dueDate).getMonth(), new Date(t.dueDate).getDate()).getTime()
     return dueDay === today
@@ -34,7 +34,7 @@ const todayCount = computed(() => {
 // ── 象限分布 ──
 const quadrantDistribution = computed(() => {
   const dist: Record<string, number> = { Q1: 0, Q2: 0, Q3: 0, Q4: 0 }
-  for (const t of store.serverTasks) {
+  for (const t of store.tasks) {
     if (t.completed) continue
     dist[getQuadrant(t.urgencyLevel, t.importanceLevel)]++
   }
@@ -58,11 +58,11 @@ const weekDays = computed(() => {
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i)
     const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
     const label = i === 0 ? '今' : i === 1 ? '昨' : `${d.getMonth()+1}/${d.getDate()}`
-    const completed = store.serverTasks.filter(t => {
+    const completed = store.tasks.filter(t => {
       if (!t.completed || !t.completedAt) return false
       return t.completedAt.startsWith(ds)
     }).length
-    const created = store.serverTasks.filter(t => t.createdAt.startsWith(ds)).length
+    const created = store.tasks.filter(t => t.createdAt.startsWith(ds)).length
     days.push({ label, completed, created, dateStr: ds })
   }
   return days
@@ -73,7 +73,7 @@ const maxTrend = computed(() => Math.max(...weekDays.value.flatMap(d => [d.compl
 // ── 标签分布 ──
 const tagDistribution = computed(() => {
   const map = new Map<string, { uuid: string; name: string; color: string; count: number }>()
-  for (const t of store.serverTasks) {
+  for (const t of store.tasks) {
     if (t.completed) continue
     const tags = t.tags
     if (!tags || !tags.length) continue
@@ -103,7 +103,7 @@ const calWeeks = computed(() => {
   // 构建每天的任务统计
   const dayMap = new Map<string, { due: number; completed: number; overdue: number }>()
   const today = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate())
-  for (const t of store.serverTasks) {
+  for (const t of store.tasks) {
     if (!t.dueDate) continue
     const d = new Date(t.dueDate)
     const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
@@ -148,7 +148,7 @@ const selectedDayLabel = computed(() => {
 })
 const selectedDayTasks = computed(() => {
   if (!selectedDayKey.value) return []
-  return store.serverTasks.filter(t => {
+  return store.tasks.filter(t => {
     if (!t.dueDate) return false
     const due = new Date(t.dueDate)
     const key = `${due.getFullYear()}-${due.getMonth()}-${due.getDate()}`
@@ -174,7 +174,7 @@ function qColor(t: { urgencyLevel: number; importanceLevel: number }): string {
 const matrixData = computed(() => {
   // matrixData[u][i] where u = urgencyLevel (1-5), i = importanceLevel (1-5)
   const grid: number[][] = Array.from({ length: 5 }, () => Array(5).fill(0))
-  for (const t of store.serverTasks) {
+  for (const t of store.tasks) {
     if (t.completed) continue
     const u = t.urgencyLevel - 1  // 0-indexed
     const im = t.importanceLevel - 1
@@ -196,7 +196,7 @@ const matrixMax = computed(() => {
 const matrixQuadrantLabel = computed(() => {
   // 找到任务最密集的象限
   const qCounts: Record<string, number> = { Q1: 0, Q2: 0, Q3: 0, Q4: 0 }
-  for (const t of store.serverTasks) {
+  for (const t of store.tasks) {
     if (t.completed) continue
     qCounts[getQuadrant(t.urgencyLevel, t.importanceLevel)]++
   }

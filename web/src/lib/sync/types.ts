@@ -9,7 +9,7 @@ export type SyncStatus = 'idle' | 'syncing' | 'offline' | 'error'
 
 export type EntityType = 'task' | 'tag' | 'taskTag' | 'checklistItems'
 
-export type OpType = 'upsert' | 'delete'
+export type OpType = 'upsert' | 'delete' | 'restore'
 
 /** 入队时的 op（包含排队状态） —— 与 IndexedDB 行结构完全一致 */
 export type PendingOpRecord = PendingOpBase

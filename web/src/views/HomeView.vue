@@ -22,7 +22,7 @@ const toast = useToast()
 useKeyboard()
 
 // ── 通知系统 ──
-const notif = useNotification(() => store.serverTasks)
+const notif = useNotification(() => store.tasks)
 if (notif.enabled.value && Notification.permission === 'granted') {
   notif.startPolling()
 }
@@ -79,7 +79,9 @@ watch(() => ui.importTrigger, () => {
 })
 
 onMounted(async () => {
-  await store.fetchFromServer()
+  // 首屏数据由 main.ts 在鉴权恢复后统一加载（本地优先 + 后台拉全量）；
+  // 这里只做一次本地重读，保证从其它页面返回时视图是最新的
+  await store.refreshFromLocal()
 })
 
 onUnmounted(() => {
@@ -175,11 +177,11 @@ async function handleImportConfirm() {
     for (const t of data.tasks) {
       try {
         if (importStrategy.value === 'skip') {
-          const exists = store.serverTasks.some(existing => existing.title === t.title && existing.dueDate === t.dueDate)
+          const exists = store.tasks.some(existing => existing.title === t.title && existing.dueDate === t.dueDate)
           if (exists) { skippedTasks++; continue }
         }
         if (importStrategy.value === 'overwrite') {
-          const existing = store.serverTasks.find(existing => existing.title === t.title && existing.dueDate === t.dueDate)
+          const existing = store.tasks.find(existing => existing.title === t.title && existing.dueDate === t.dueDate)
           if (existing) {
             await store.updateTask(existing.uuid, { title: t.title, urgencyLevel: t.urgencyLevel ?? 0, importanceLevel: t.importanceLevel ?? 0, dueDate: t.dueDate ?? null, note: t.note ?? null })
             importedTasks++; continue

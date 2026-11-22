@@ -435,7 +435,7 @@ describe('pushAll result handling', () => {
     expect(mockUpdateOpStatus).toHaveBeenCalledWith(1, 'conflict', expect.any(String))
   })
 
-  it('status=rejected → op 标 failed 带 reason', async () => {
+  it('status=rejected → op 直接出队（不再无限重试）并记 lastError', async () => {
     mockGetPendingOps.mockResolvedValue([
       { id: 1, opId: 'op1', entityType: 'task', opType: 'upsert', entityUuid: 'u1',
         payload: {}, createdAt: Date.now(), status: 'pending' },
@@ -446,11 +446,15 @@ describe('pushAll result handling', () => {
       },
     })
     mockUpdateOpStatus.mockResolvedValue(undefined)
+    mockDeleteOp.mockResolvedValue(undefined)
     mockPull.mockResolvedValue({ data: { serverAt: 'x' } })
     mockGetPendingCount.mockResolvedValue(0)
 
     await syncEngine.sync()
-    expect(mockUpdateOpStatus).toHaveBeenCalledWith(1, 'failed', 'permission-denied')
+    // 拒绝是永久性的：留在队列里会被无限重试，所以要出队
+    expect(mockDeleteOp).toHaveBeenCalledWith(1)
+    expect(mockUpdateOpStatus).not.toHaveBeenCalledWith(1, 'failed', expect.anything())
+    expect(syncEngine.state.lastError).toContain('permission-denied')
     expect(syncEngine.state.conflicts.length).toBe(0)
   })
 })

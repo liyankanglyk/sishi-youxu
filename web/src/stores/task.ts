@@ -1,7 +1,10 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { taskApi, type TaskCreatePayload, type TaskUpdatePayload, type TaskOut } from '@/api/tasks'
+import { taskApi, type TaskCreatePayload, type TaskUpdatePayload, type TaskOut, type ChecklistItem } from '@/api/tasks'
 import { tagApi, type TagOut } from '@/api/tags'
+import * as repo from '@/lib/sync/repository'
+import { syncEngine } from '@/lib/sync/engine'
+import { generateUuid } from '@/db'
 
 /* ===== 历史记录 ===== */
 interface HistoryEntry {
@@ -63,7 +66,7 @@ export function getDueStatus(dueDate: string | null): 'overdue' | 'today' | 'thi
   const endOfWeek = new Date(today)
   endOfWeek.setDate(today.getDate() + (6 - today.getDay()))
   if (dueDay <= endOfWeek) return 'thisWeek'
-  const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0)
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
   if (dueDay <= endOfMonth) return 'thisMonth'
   return 'normal'
 }
@@ -81,7 +84,8 @@ export const DUE_STATUS_CONFIG: Record<string, { color: string; bg: string; labe
 export type TaskEx = TaskOut
 
 export const useTaskStore = defineStore('task', () => {
-  const serverTasks = ref<TaskOut[]>([])
+  /** UI 视图模型：数据来自本地 Dexie（Dexie 是唯一数据源） */
+  const tasks = ref<TaskOut[]>([])
   const tags = ref<TagOut[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
@@ -128,7 +132,7 @@ export const useTaskStore = defineStore('task', () => {
   /** 今日已完成任务数 */
   const todayCompletedCount = computed(() => {
     const today = new Date().toISOString().slice(0, 10)
-    return serverTasks.value.filter(t => t.completed && t.completedAt?.startsWith(today)).length
+    return tasks.value.filter(t => t.completed && t.completedAt?.startsWith(today)).length
   })
 
   /** 完成强度等级 1-5，基于今日完成数逐级升级 */
@@ -165,7 +169,7 @@ export const useTaskStore = defineStore('task', () => {
 
   // ── 过滤后的任务（搜索 + 标签 + 截止日期 + focusToday） ──
   const filteredTasks = computed(() => {
-    let result = serverTasks.value
+    let result = tasks.value
 
     // 今日焦点：仅展示已过期/今天/本周/本月，并隐藏已完成
     if (focusToday.value) {
@@ -232,9 +236,205 @@ export const useTaskStore = defineStore('task', () => {
   const q3Tasks = computed(() => filteredTasks.value.filter(t => t.importanceLevel < 0 && t.urgencyLevel >= 0))
   const q4Tasks = computed(() => filteredTasks.value.filter(t => t.importanceLevel < 0 && t.urgencyLevel < 0))
 
-  const completedTasks = computed(() => serverTasks.value.filter(t => t.completed))
+  const completedTasks = computed(() => tasks.value.filter(t => t.completed))
 
-  // ── 数据加载 ──
+  // ===========================================================================
+  // 本地数据层（Dexie 是唯一数据源）
+  // ===========================================================================
+
+  /** 本地记录 → UI 模型。tags 用 uuid 数组，组件再按 uuid 去 store.tags 里取名称与颜色。 */
+  function toTaskOut(
+    local: {
+      uuid: string
+      title: string
+      urgencyLevel: number
+      importanceLevel: number
+      dueDate: string | null
+      recurrence: string | null
+      note: string | null
+      completed: boolean
+      completedAt: string | null
+      sortOrder: number
+      createdAt: string
+      updatedAt: string
+    },
+    tagUuids: string[],
+    checklist: { total: number; done: number; items: ChecklistItem[] },
+  ): TaskOut {
+    return {
+      uuid: local.uuid,
+      title: local.title,
+      urgencyLevel: local.urgencyLevel,
+      importanceLevel: local.importanceLevel,
+      dueDate: local.dueDate,
+      recurrence: local.recurrence,
+      note: local.note,
+      tags: tagUuids,
+      checklistTotal: checklist.total,
+      checklistCompleted: checklist.done,
+      checklistItems: checklist.items,
+      completed: local.completed,
+      completedAt: local.completedAt,
+      sortOrder: local.sortOrder,
+      createdAt: local.createdAt,
+      updatedAt: local.updatedAt,
+    } as TaskOut
+  }
+
+  /** 从 Dexie 重读全部数据并刷新视图模型。 */
+  async function refreshFromLocal(): Promise<void> {
+    const [localTasks, localTags, links, items] = await Promise.all([
+      repo.getAllTasks(),
+      repo.getAllTags(),
+      repo.getAllTaskTags(),
+      repo.getAllChecklistItems(),
+    ])
+
+    const tagMap = new Map<string, string[]>()
+    for (const link of links) {
+      const arr = tagMap.get(link.taskUuid) ?? []
+      arr.push(link.tagUuid)
+      tagMap.set(link.taskUuid, arr)
+    }
+
+    const clMap = new Map<string, { total: number; done: number; items: ChecklistItem[] }>()
+    for (const item of items) {
+      if (item.deletedAt) continue
+      const cur = clMap.get(item.taskUuid) ?? { total: 0, done: 0, items: [] }
+      cur.total += 1
+      if (item.completed) cur.done += 1
+      cur.items.push({
+        uuid: item.uuid,
+        title: item.title,
+        completed: item.completed,
+        sortOrder: item.sortOrder,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+      })
+      clMap.set(item.taskUuid, cur)
+    }
+
+    tasks.value = localTasks.map(t =>
+      toTaskOut(t, tagMap.get(t.uuid) ?? [], clMap.get(t.uuid) ?? { total: 0, done: 0, items: [] }),
+    )
+    tags.value = localTags
+      .filter(t => !t.deletedAt)
+      .map(t => ({
+        uuid: t.uuid,
+        name: t.name,
+        color: t.color,
+        isPreset: t.isPreset,
+        createdAt: t.createdAt,
+        updatedAt: t.updatedAt,
+      }))
+  }
+
+  /** 同步引擎完成一次 push/pull 后重读本地（只注册一次，避免重复刷新）。 */
+  let syncBound = false
+  function bindSyncEngine() {
+    if (syncBound) return
+    syncBound = true
+    syncEngine.onDataChanged(() => {
+      void refreshFromLocal()
+    })
+  }
+
+  // ===========================================================================
+  // 写路径：本地优先（写 Dexie → 入队 → 触发同步）
+  // ===========================================================================
+
+  /** 组装给服务端的 op payload（字段与后端 create/update 接受的 camelCase 一致）。 */
+  function opPayload(local: {
+    uuid: string
+    title: string
+    urgencyLevel: number
+    importanceLevel: number
+    dueDate: string | null
+    recurrence: string | null
+    note: string | null
+    completed: boolean
+    completedAt: string | null
+    sortOrder: number
+    remindAt: string | null
+    remindOffsetMinutes: number | null
+    updatedAt: string
+  }, tagUuids?: string[]): Record<string, unknown> {
+    const payload: Record<string, unknown> = {
+      uuid: local.uuid,
+      title: local.title,
+      urgencyLevel: local.urgencyLevel,
+      importanceLevel: local.importanceLevel,
+      dueDate: local.dueDate,
+      recurrence: local.recurrence,
+      note: local.note,
+      completed: local.completed,
+      completedAt: local.completedAt,
+      sortOrder: local.sortOrder,
+      remindAt: local.remindAt,
+      remindOffsetMinutes: local.remindOffsetMinutes,
+      updatedAt: local.updatedAt,
+    }
+    if (tagUuids) payload.tags = tagUuids
+    return payload
+  }
+
+  /** 更新本地任务-标签关联集合（与 task op 一起同步，服务端按 tags 字段整体覆盖）。 */
+  async function setTaskTags(taskUuid: string, tagUuids: string[]): Promise<void> {
+    const existing = (await repo.getAllTaskTags()).filter(l => l.taskUuid === taskUuid)
+    const target = new Set(tagUuids)
+    for (const link of existing) {
+      if (!target.has(link.tagUuid)) await repo.deleteTaskTag(link.taskUuid, link.tagUuid)
+    }
+    for (const tagUuid of tagUuids) await repo.putTaskTag(taskUuid, tagUuid)
+  }
+
+  async function currentTagUuids(taskUuid: string): Promise<string[]> {
+    return (await repo.getAllTaskTags()).filter(l => l.taskUuid === taskUuid).map(l => l.tagUuid)
+  }
+
+  /**
+   * 唯一的任务写入口：写本地 → 入队 → 触发同步 → 刷新视图。
+   * opType：upsert（新增/修改）、delete（软删）、restore（撤销删除）。
+   */
+  async function writeTask(
+    uuid: string,
+    patch: Partial<{
+      title: string
+      urgencyLevel: number
+      importanceLevel: number
+      dueDate: string | null
+      recurrence: string | null
+      note: string | null
+      completed: boolean
+      completedAt: string | null
+      sortOrder: number
+      remindAt: string | null
+      remindOffsetMinutes: number | null
+    }>,
+    opType: 'upsert' | 'delete' | 'restore' = 'upsert',
+  ): Promise<void> {
+    const current = await repo.getTask(uuid)
+    if (!current) return
+
+    if (opType === 'delete') {
+      await repo.softDeleteTask(uuid)
+      await repo.enqueueOp('task', 'delete', uuid, { uuid })
+    } else if (opType === 'restore') {
+      await repo.restoreTask(uuid)
+      await repo.enqueueOp('task', 'restore', uuid, { uuid })
+    } else {
+      const merged = await repo.putTask({ ...current, ...patch, uuid })
+      const tagUuids = await currentTagUuids(uuid)
+      await repo.enqueueOp('task', 'upsert', uuid, opPayload(merged, tagUuids))
+    }
+    syncEngine.schedule()
+    await refreshFromLocal()
+  }
+
+  // ===========================================================================
+  // 数据加载
+  // ===========================================================================
+
   /** 后端 pageSize 上限为 100，逐页取完，避免任务数超过一页时被静默截断。 */
   const FETCH_PAGE_SIZE = 100
   const FETCH_MAX_PAGES = 50
@@ -249,154 +449,205 @@ export const useTaskStore = defineStore('task', () => {
     return acc
   }
 
-  async function fetchFromServer() {
+  /** 把服务端返回的记录写进本地（标记为已同步，作为离线缓存）。 */
+  async function hydrateFromServer(list: TaskOut[], tagList: TagOut[]): Promise<void> {
+    for (const tag of tagList) {
+      await repo.overwriteTagFromServer(tag as unknown as Record<string, unknown>)
+    }
+    for (const t of list) {
+      await repo.overwriteFromServer(t as unknown as Record<string, unknown>)
+      const tagUuids = Array.isArray(t.tags)
+        ? (t.tags as unknown[]).map((tag) =>
+            typeof tag === 'string' ? tag : (tag as { uuid: string }).uuid,
+          )
+        : []
+      await setTaskTags(t.uuid, tagUuids)
+    }
+  }
+
+  /**
+   * 首屏加载：先读本地（离线也能立刻出画面），再联网拉全量覆盖本地。
+   * 之后的增量变更交给同步引擎。
+   */
+  async function bootstrap(): Promise<void> {
     loading.value = true
     error.value = null
     try {
-      const [allTasks, tagData] = await Promise.all([
-        fetchAllTasks(),
-        tagApi.list(),
-      ])
-      serverTasks.value = allTasks
-      tags.value = tagData.data?.items ?? []
+      await refreshFromLocal()
+      if (!navigator.onLine) return
+      const [list, tagData] = await Promise.all([fetchAllTasks(), tagApi.list()])
+      await hydrateFromServer(list, tagData.data?.items ?? [])
+      await refreshFromLocal()
     } catch (e: any) {
       error.value = e.message || '加载失败'
-    } finally { loading.value = false }
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /** 兼容旧调用点：现在等价于 bootstrap。 */
+  async function fetchFromServer() {
+    await bootstrap()
   }
 
   async function fetchTask(uuid: string): Promise<TaskOut | null> {
-    try {
-      const { data } = await taskApi.get(uuid)
-      return data ?? null
-    } catch { return null }
+    await refreshFromLocal()
+    return tasks.value.find(t => t.uuid === uuid) ?? null
   }
 
+  // ===========================================================================
+  // 任务操作（全部本地优先）
+  // ===========================================================================
+
   async function createTask(payload: TaskCreatePayload): Promise<TaskOut | null> {
-    const { data } = await taskApi.create(payload)
-    if (data) {
-      serverTasks.value.push(data)
-      pushHistory({
-        description: `创建「${data.title}」`,
-        undo: async () => { serverTasks.value = serverTasks.value.filter(t => t.uuid !== data.uuid); await taskApi.delete(data.uuid) },
-        redo: async () => { serverTasks.value.push(data); await taskApi.create(payload) },
-      })
-    }
-    return data ?? null
+    const uuid = generateUuid()
+    const local = await repo.putTask({
+      uuid,
+      title: payload.title ?? '',
+      urgencyLevel: payload.urgencyLevel ?? 0,
+      importanceLevel: payload.importanceLevel ?? 0,
+      dueDate: payload.dueDate ?? null,
+      recurrence: payload.recurrence ?? null,
+      note: payload.note ?? null,
+      completed: false,
+      completedAt: null,
+      sortOrder: payload.sortOrder ?? 0,
+    })
+    const tagUuids = payload.tags ?? []
+    if (tagUuids.length) await setTaskTags(uuid, tagUuids)
+    await repo.enqueueOp('task', 'upsert', uuid, opPayload(local, tagUuids))
+    syncEngine.schedule()
+    await refreshFromLocal()
+
+    pushHistory({
+      description: `创建「${local.title}」`,
+      undo: async () => {
+        await repo.softDeleteTask(uuid)
+        await repo.enqueueOp('task', 'delete', uuid, { uuid })
+        syncEngine.schedule()
+        await refreshFromLocal()
+      },
+      redo: async () => {
+        await repo.restoreTask(uuid)
+        await repo.enqueueOp('task', 'restore', uuid, { uuid })
+        syncEngine.schedule()
+        await refreshFromLocal()
+      },
+    })
+
+    return tasks.value.find(t => t.uuid === uuid) ?? null
   }
 
   async function updateTask(uuid: string, changes: TaskUpdatePayload) {
-    const old = serverTasks.value.find(t => t.uuid === uuid)
-    if (!old) return
-    const merged = { ...old, ...changes }
-    const idx = serverTasks.value.indexOf(old)
-    if (idx >= 0) serverTasks.value[idx] = merged as any
+    const before = await repo.getTask(uuid)
+    if (!before) return
+    const tagUuids = changes.tags ? changes.tags : await currentTagUuids(uuid)
+    if (changes.tags) await setTaskTags(uuid, changes.tags)
 
-    try {
-      const { data } = await taskApi.update(uuid, changes)
-      if (data && idx >= 0) serverTasks.value[idx] = data
-    } catch {
-      if (idx >= 0) serverTasks.value[idx] = old
-      throw new Error('更新失败')
+    await writeTask(uuid, {
+      title: changes.title,
+      urgencyLevel: changes.urgencyLevel,
+      importanceLevel: changes.importanceLevel,
+      dueDate: changes.dueDate,
+      recurrence: changes.recurrence,
+      note: changes.note,
+      completed: changes.completed,
+      completedAt: changes.completedAt,
+      sortOrder: changes.sortOrder,
+    })
+    // tags 也要跟着 op 一起发（服务端按 tags 覆盖关联）
+    if (changes.tags) {
+      const merged = await repo.getTask(uuid)
+      if (merged) {
+        await repo.enqueueOp('task', 'upsert', uuid, opPayload(merged, tagUuids))
+        syncEngine.schedule()
+      }
     }
 
     pushHistory({
-      description: `编辑「${old.title}」`,
+      description: `编辑「${before.title}」`,
       undo: async () => {
-        const u = serverTasks.value.findIndex(t => t.uuid === uuid)
-        if (u >= 0) serverTasks.value[u] = old
-        await taskApi.update(uuid, { title: old.title, urgencyLevel: old.urgencyLevel, importanceLevel: old.importanceLevel, dueDate: old.dueDate, note: old.note })
+        await writeTask(uuid, {
+          title: before.title,
+          urgencyLevel: before.urgencyLevel,
+          importanceLevel: before.importanceLevel,
+          dueDate: before.dueDate,
+          recurrence: before.recurrence,
+          note: before.note,
+          completed: before.completed,
+          completedAt: before.completedAt,
+          sortOrder: before.sortOrder,
+        })
       },
       redo: async () => {
-        const u = serverTasks.value.findIndex(t => t.uuid === uuid)
-        if (u >= 0) serverTasks.value[u] = merged as any
-        await taskApi.update(uuid, changes)
+        await writeTask(uuid, changes)
       },
     })
   }
 
   async function moveTask(uuid: string, urgencyLevel: number, importanceLevel: number) {
-    const task = serverTasks.value.find(t => t.uuid === uuid)
-    if (!task) return
-    if (task.urgencyLevel === urgencyLevel && task.importanceLevel === importanceLevel) return
-    const oldUrg = task.urgencyLevel
-    const oldImp = task.importanceLevel
-    const idx = serverTasks.value.indexOf(task)
-    if (idx >= 0) serverTasks.value[idx] = { ...task, urgencyLevel, importanceLevel }
+    const before = await repo.getTask(uuid)
+    if (!before) return
+    if (before.urgencyLevel === urgencyLevel && before.importanceLevel === importanceLevel) return
 
-    try { await taskApi.update(uuid, { urgencyLevel, importanceLevel }) }
-    catch { if (idx >= 0) { serverTasks.value[idx] = { ...serverTasks.value[idx], urgencyLevel: oldUrg, importanceLevel: oldImp } } }
+    await writeTask(uuid, { urgencyLevel, importanceLevel })
 
     pushHistory({
-      description: `移动「${task.title}」`,
+      description: `移动「${before.title}」`,
       undo: async () => {
-        const i = serverTasks.value.findIndex(t => t.uuid === uuid)
-        if (i >= 0) serverTasks.value[i] = { ...serverTasks.value[i], urgencyLevel: oldUrg, importanceLevel: oldImp }
-        await taskApi.update(uuid, { urgencyLevel: oldUrg, importanceLevel: oldImp })
+        await writeTask(uuid, { urgencyLevel: before.urgencyLevel, importanceLevel: before.importanceLevel })
       },
       redo: async () => {
-        const i = serverTasks.value.findIndex(t => t.uuid === uuid)
-        if (i >= 0) serverTasks.value[i] = { ...serverTasks.value[i], urgencyLevel, importanceLevel }
-        await taskApi.update(uuid, { urgencyLevel, importanceLevel })
+        await writeTask(uuid, { urgencyLevel, importanceLevel })
       },
     })
   }
 
   async function completeTask(uuid: string) {
-    const task = serverTasks.value.find(t => t.uuid === uuid)
+    const task = await repo.getTask(uuid)
     if (!task) return
-    const now = new Date().toISOString()
     const wasCompleted = task.completed
     const wasCompletedAt = task.completedAt
-    const idx = serverTasks.value.indexOf(task)
+    const now = new Date().toISOString()
 
-    if (idx >= 0) {
-      serverTasks.value[idx] = { ...task, completed: !wasCompleted, completedAt: !wasCompleted ? now : null }
-    }
-    try {
-      await taskApi.update(uuid, { completed: !wasCompleted, completedAt: !wasCompleted ? now : null })
-    } catch {
-      if (idx >= 0) serverTasks.value[idx] = task
-      return
-    }
+    await writeTask(uuid, {
+      completed: !wasCompleted,
+      completedAt: !wasCompleted ? now : null,
+    })
 
     // ── 重复任务：完成时自动生成下一个实例；取消完成时清理 ──
     let generatedUuid: string | null = null
     if (!wasCompleted && task.recurrence && task.dueDate) {
-      // 完成重复任务 → 生成下一期实例
       const nextDue = getNextDueDate(task.dueDate, task.recurrence)
       if (nextDue) {
-        try {
-          const { data } = await taskApi.create({
-            title: task.title,
-            urgencyLevel: task.urgencyLevel,
-            importanceLevel: task.importanceLevel,
-            dueDate: nextDue,
-            recurrence: task.recurrence,
-            note: task.note,
-            tags: task.tags && typeof task.tags[0] !== 'string'
-              ? (task.tags as { uuid: string }[]).map(t => t.uuid)
-              : undefined,
-          })
-          if (data) {
-            generatedUuid = data.uuid
-            if (data.uuid) {
-              serverTasks.value.push(data)
-              generatedNextMap.value.set(uuid, data.uuid)
-            }
-          }
-        } catch { /* 下一期实例的创建是尽力而为 */ }
+        const next = await repo.putTask({
+          uuid: generateUuid(),
+          title: task.title,
+          urgencyLevel: task.urgencyLevel,
+          importanceLevel: task.importanceLevel,
+          dueDate: nextDue,
+          recurrence: task.recurrence,
+          note: task.note,
+          completed: false,
+          completedAt: null,
+          sortOrder: task.sortOrder,
+        })
+        const tagUuids = await currentTagUuids(uuid)
+        if (tagUuids.length) await setTaskTags(next.uuid, tagUuids)
+        await repo.enqueueOp('task', 'upsert', next.uuid, opPayload(next, tagUuids))
+        generatedUuid = next.uuid
+        generatedNextMap.value.set(uuid, next.uuid)
       }
     } else if (wasCompleted) {
-      // 取消完成重复任务 → 清理已生成的下一期实例
       const nextUuid = generatedNextMap.value.get(uuid)
       if (nextUuid) {
-        try {
-          await taskApi.delete(nextUuid)
-        } catch { /* 已经删除 */ }
-        serverTasks.value = serverTasks.value.filter(t => t.uuid !== nextUuid)
+        await repo.softDeleteTask(nextUuid)
+        await repo.enqueueOp('task', 'delete', nextUuid, { uuid: nextUuid })
         generatedNextMap.value.delete(uuid)
       }
     }
+    syncEngine.schedule()
+    await refreshFromLocal()
 
     if (!wasCompleted) {
       celebrationTitle.value = task.title
@@ -407,48 +658,42 @@ export const useTaskStore = defineStore('task', () => {
     pushHistory({
       description: `${wasCompleted ? '恢复' : '完成'}「${task.title}」${generatedUuid ? '（已生成下一期）' : ''}`,
       undo: async () => {
-        const i = serverTasks.value.findIndex(t => t.uuid === uuid)
-        if (i >= 0) serverTasks.value[i] = { ...serverTasks.value[i], completed: wasCompleted, completedAt: wasCompletedAt }
-        await taskApi.update(uuid, { completed: wasCompleted, completedAt: wasCompletedAt })
-        // 清理已生成的下一期实例
+        await writeTask(uuid, { completed: wasCompleted, completedAt: wasCompletedAt })
         if (generatedUuid) {
-          try { await taskApi.delete(generatedUuid) } catch { /* 忽略 */ }
-          serverTasks.value = serverTasks.value.filter(t => t.uuid !== generatedUuid)
+          await repo.softDeleteTask(generatedUuid)
+          await repo.enqueueOp('task', 'delete', generatedUuid, { uuid: generatedUuid })
           generatedNextMap.value.delete(uuid)
         }
+        syncEngine.schedule()
+        await refreshFromLocal()
       },
       redo: async () => {
-        const i = serverTasks.value.findIndex(t => t.uuid === uuid)
-        if (i >= 0) serverTasks.value[i] = { ...serverTasks.value[i], completed: !wasCompleted, completedAt: !wasCompleted ? now : null }
-        await taskApi.update(uuid, { completed: !wasCompleted, completedAt: !wasCompleted ? now : null })
-        if (generatedUuid) {
-          const { data } = await taskApi.create({
-            title: task.title, urgencyLevel: task.urgencyLevel, importanceLevel: task.importanceLevel,
-            dueDate: getNextDueDate(task.dueDate!, task.recurrence!), recurrence: task.recurrence!,
-            note: task.note, tags: task.tags && typeof task.tags[0] !== 'string'
-              ? (task.tags as { uuid: string }[]).map(t => t.uuid) : undefined,
-          })
-          if (data) { serverTasks.value.push(data); generatedNextMap.value.set(uuid, data.uuid) }
-        }
+        await writeTask(uuid, { completed: !wasCompleted, completedAt: !wasCompleted ? now : null })
+        syncEngine.schedule()
+        await refreshFromLocal()
       },
     })
   }
 
   async function deleteTask(uuid: string) {
-    const task = serverTasks.value.find(t => t.uuid === uuid)
+    const task = await repo.getTask(uuid)
     if (!task) return
-    serverTasks.value = serverTasks.value.filter(t => t.uuid !== uuid)
-    try { await taskApi.delete(uuid) } catch { serverTasks.value.push(task) }
+
+    await writeTask(uuid, {}, 'delete')
 
     pushHistory({
       description: `删除「${task.title}」`,
       undo: async () => {
-        serverTasks.value.push(task)
-        await taskApi.create({ title: task.title, urgencyLevel: task.urgencyLevel, importanceLevel: task.importanceLevel, dueDate: task.dueDate, note: task.note })
+        await repo.restoreTask(uuid)
+        await repo.enqueueOp('task', 'restore', uuid, { uuid })
+        syncEngine.schedule()
+        await refreshFromLocal()
       },
       redo: async () => {
-        serverTasks.value = serverTasks.value.filter(t => t.uuid !== uuid)
-        await taskApi.delete(uuid)
+        await repo.softDeleteTask(uuid)
+        await repo.enqueueOp('task', 'delete', uuid, { uuid })
+        syncEngine.schedule()
+        await refreshFromLocal()
       },
     })
   }
@@ -467,19 +712,22 @@ export const useTaskStore = defineStore('task', () => {
   async function batchComplete() {
     const ids = [...selectedTaskIds.value]
     const now = new Date().toISOString()
+    const before = new Map<string, { completed: boolean; completedAt: string | null }>()
     for (const uuid of ids) {
-      await taskApi.update(uuid, { completed: true, completedAt: now })
+      const t = await repo.getTask(uuid)
+      if (t) before.set(uuid, { completed: t.completed, completedAt: t.completedAt })
+      await writeTask(uuid, { completed: true, completedAt: now })
     }
-    await fetchFromServer()
     pushHistory({
       description: `批量完成 ${ids.length} 个任务`,
       undo: async () => {
-        for (const uuid of ids) { await taskApi.update(uuid, { completed: false, completedAt: null }) }
-        await fetchFromServer()
+        for (const uuid of ids) {
+          const prev = before.get(uuid)
+          await writeTask(uuid, { completed: prev?.completed ?? false, completedAt: prev?.completedAt ?? null })
+        }
       },
       redo: async () => {
-        for (const uuid of ids) { await taskApi.update(uuid, { completed: true, completedAt: now }) }
-        await fetchFromServer()
+        for (const uuid of ids) await writeTask(uuid, { completed: true, completedAt: now })
       },
     })
     clearSelection()
@@ -487,22 +735,19 @@ export const useTaskStore = defineStore('task', () => {
 
   async function batchDelete() {
     const ids = [...selectedTaskIds.value]
-    const victims = serverTasks.value.filter(t => ids.includes(t.uuid))
-    serverTasks.value = serverTasks.value.filter(t => !ids.includes(t.uuid))
-    try {
-      await taskApi.batch({ idempotencyKey: crypto.randomUUID(), action: 'delete', taskUuids: ids })
-    } catch { await fetchFromServer() }
+    for (const uuid of ids) await writeTask(uuid, {}, 'delete')
     pushHistory({
       description: `批量删除 ${ids.length} 个任务`,
       undo: async () => {
-        for (const t of victims) {
-          serverTasks.value.push(t)
-          await taskApi.create({ title: t.title, urgencyLevel: t.urgencyLevel, importanceLevel: t.importanceLevel, dueDate: t.dueDate, note: t.note })
+        for (const uuid of ids) {
+          await repo.restoreTask(uuid)
+          await repo.enqueueOp('task', 'restore', uuid, { uuid })
         }
+        syncEngine.schedule()
+        await refreshFromLocal()
       },
       redo: async () => {
-        serverTasks.value = serverTasks.value.filter(t => !ids.includes(t.uuid))
-        await taskApi.batch({ idempotencyKey: crypto.randomUUID(), action: 'delete', taskUuids: ids })
+        for (const uuid of ids) await writeTask(uuid, {}, 'delete')
       },
     })
     clearSelection()
@@ -523,8 +768,83 @@ export const useTaskStore = defineStore('task', () => {
     undoStack.value.push(entry)
   }
 
+  // ── 标签（本地优先）──
+  async function createTag(name: string, color: string): Promise<TagOut | null> {
+    const local = await repo.putTag({ uuid: generateUuid(), name, color, isPreset: false })
+    await repo.enqueueOp('tag', 'upsert', local.uuid, {
+      uuid: local.uuid,
+      name: local.name,
+      color: local.color,
+    })
+    syncEngine.schedule()
+    await refreshFromLocal()
+    return tags.value.find(t => t.uuid === local.uuid) ?? null
+  }
+
+  async function updateTag(uuid: string, changes: { name?: string; color?: string }) {
+    const before = await repo.getTag(uuid)
+    if (!before) return
+    const merged = await repo.putTag({ ...before, ...changes, uuid })
+    await repo.enqueueOp('tag', 'upsert', uuid, {
+      uuid: merged.uuid,
+      name: merged.name,
+      color: merged.color,
+    })
+    syncEngine.schedule()
+    await refreshFromLocal()
+  }
+
+  async function deleteTag(uuid: string) {
+    await repo.softDeleteTag(uuid)
+    await repo.enqueueOp('tag', 'delete', uuid, { uuid })
+    syncEngine.schedule()
+    await refreshFromLocal()
+  }
+
+  // ── 检查项（本地优先）──
+  async function addChecklistItem(taskUuid: string, title: string): Promise<void> {
+    const local = await repo.putChecklistItem({
+      uuid: generateUuid(),
+      taskUuid,
+      title,
+      completed: false,
+      sortOrder: 0,
+    })
+    await repo.enqueueOp('checklistItems', 'upsert', local.uuid, {
+      uuid: local.uuid,
+      taskUuid: local.taskUuid,
+      title: local.title,
+      completed: local.completed,
+      sortOrder: local.sortOrder,
+    })
+    syncEngine.schedule()
+    await refreshFromLocal()
+  }
+
+  async function updateChecklistItem(itemUuid: string, changes: { title?: string; completed?: boolean }): Promise<void> {
+    const before = await repo.getChecklistItem(itemUuid)
+    if (!before) return
+    const merged = await repo.putChecklistItem({ ...before, ...changes, uuid: itemUuid })
+    await repo.enqueueOp('checklistItems', 'upsert', itemUuid, {
+      uuid: merged.uuid,
+      taskUuid: merged.taskUuid,
+      title: merged.title,
+      completed: merged.completed,
+      sortOrder: merged.sortOrder,
+    })
+    syncEngine.schedule()
+    await refreshFromLocal()
+  }
+
+  async function deleteChecklistItem(itemUuid: string): Promise<void> {
+    await repo.softDeleteChecklistItem(itemUuid)
+    await repo.enqueueOp('checklistItems', 'delete', itemUuid, { uuid: itemUuid })
+    syncEngine.schedule()
+    await refreshFromLocal()
+  }
+
   function exportData() {
-    const blob = new Blob([JSON.stringify({ tasks: serverTasks.value, tags: tags.value, exportedAt: new Date().toISOString() })], { type: 'application/json' })
+    const blob = new Blob([JSON.stringify({ tasks: tasks.value, tags: tags.value, exportedAt: new Date().toISOString() })], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -567,7 +887,7 @@ export const useTaskStore = defineStore('task', () => {
   const hasActiveFilters = computed(() => !!searchQuery.value || !!selectedQuadrant.value || tagFilter.value.length > 0 || dueFilter.value !== 'all' || focusToday.value)
 
   return {
-    serverTasks, tags, loading, error,
+    tasks, tags, loading, error,
     searchQuery, tagFilter, dueFilter, selectedQuadrant, viewDensity, isListOpen,
     editingTaskUuid, isCreating, createUrgencyLevel, createImportanceLevel,
     celebrationTitle, celebrationOrigin, todayCompletedCount, completionIntensity, lastCompletedQuadrant,
@@ -577,7 +897,10 @@ export const useTaskStore = defineStore('task', () => {
     q1Tasks, q2Tasks, q3Tasks, q4Tasks,
     hasActiveFilters,
     focusToday, isDimmed,
-    fetchFromServer, fetchTask, createTask, updateTask, moveTask, completeTask, deleteTask,
+    bootstrap, fetchFromServer, refreshFromLocal, bindSyncEngine, fetchTask,
+    createTask, updateTask, moveTask, completeTask, deleteTask,
+    createTag, updateTag, deleteTag,
+    addChecklistItem, updateChecklistItem, deleteChecklistItem,
     toggleSelectTask, selectAllTasks, clearSelection, batchComplete, batchDelete,
     undo, redo,
     exportData,

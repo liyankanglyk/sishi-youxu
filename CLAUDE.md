@@ -216,7 +216,10 @@ Pinia store 命名 `useXxxStore`，结构：`ref` 状态 + `computed` 派生 + `
 - **画布网格**：level 取 −2…2（每轴 5 档），步长 = 画布宽的 20%；卡片宽度用容器查询 `min(220px, 20cqw − 34px)` 跟随步长——卡片比格点宽就会压到相邻格点上。改档位必须同步改 `QuadrantCanvas.getGridStepPct()` 与 `TaskCard` 的 `cqw` 规则。
 - **数据加载**：`stores/task.ts` 的 `fetchFromServer` 按 `pageSize=100` 翻页拉全量；后端 pageSize 上限是 100，不传参数只会拿到前 20 条（`meta.hasMore` 必须处理）。
 - **拖拽**：卡片中心 = 光标位置 − 抓取偏移，直接映射成画布百分比；不要在拖拽坐标上再套 level→位置的 margin/range 映射，否则卡片会被"吸向"画布中心（边缘最大偏差可达 margin）。
-- **待接线**：`syncEngine.start()` 仍无调用点，`stores/task.ts` 仍是纯 REST 驱动（Dexie 只在登录时写了一条 authSession）。引擎侧的三处致命缺陷已修（批次失败后 `syncing` 卡死、`readLocalEntity` 只支持 task、`resolveConflict('local')` 反复冲突 —— 裁决后重新入队的 op 带 `force: true`，服务端据此跳过冲突检测）。接线时还要补：store 读写改走 Dexie、登出调 `clearLocal()`、挂载 `SyncStatusBadge` 与 `ConflictDialog`。
+- **离线优先已接线**：`stores/task.ts` 的读写全部走 Dexie（`lib/sync/repository.ts`），REST 只在首屏拉全量与同步引擎里出现；`main.ts` 在鉴权恢复后 `syncEngine.start()` + `store.bootstrap()`；顶栏挂 `SyncStatusBadge`（内含 `ConflictDialog`）；登出/改密走 `clearLocal()` 清本地与队列。
+  - 写路径：写本地 → `enqueueOp` → `schedule()` → 引擎 push（500ms 去抖）；撤销/重做改为"反向写本地 + 入队"，不再是反向调 API（原先重建任务会换 uuid、丢标签与检查项）。
+  - 任务删除用 `delete` op、撤销用 `restore` op（同一个 uuid 恢复，服务端新增 `action=restore`）。
+  - `serverTasks` 已改名为 `tasks`（数据来自本地，名字别再用"server"）。
 
 ---
 

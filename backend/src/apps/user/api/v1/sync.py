@@ -300,6 +300,12 @@ async def _apply_op(
             await svc.delete_task(uuid, user_uuid)
             return {}
 
+        elif action == "restore":
+            # 撤销删除：把软删的任务恢复。客户端的撤销不再走"删除后重建"，
+            # 而是恢复同一个 uuid，否则服务端会多出一条任务、标签与检查项也会丢
+            await svc.restore_task(uuid, user_uuid)
+            return {}
+
     elif entity == "tag":
         if action == "upsert":
             tag_uuid = payload.get("uuid") or ""

@@ -53,10 +53,10 @@ async function createTagInline() {
   if (!newTagName.value.trim()) return
   newTagSaving.value = true
   try {
-    const { data } = await tagApi.create({ name: newTagName.value.trim(), color: newTagColor.value })
-    if (data) {
-      tagOptions.value.push(data)
-      selectedTags.value.push(data.uuid)
+    const created = await taskStore.createTag(newTagName.value.trim(), newTagColor.value)
+    if (created) {
+      tagOptions.value.push(created)
+      selectedTags.value.push(created.uuid)
     }
     newTagName.value = ''
     newTagColor.value = '#A07CCB'
@@ -120,7 +120,7 @@ watch(() => [props.visible, props.taskUuid], async ([vis, uuid]) => {
   }
 
   // 2. 编辑任务：从 store 即时填充全部数据（含检查项），跳过网络请求
-  const local = taskStore.serverTasks.find((t: any) => t.uuid === uuid)
+  const local = taskStore.tasks.find((t: any) => t.uuid === uuid)
   const hasFullData = local?.checklistItems !== undefined
   if (local) {
     title.value = local.title
@@ -247,49 +247,30 @@ async function handleSubmit() {
       tags: selectedTags.value.length ? selectedTags.value : undefined,
     }
 
-    let savedTask: TaskOut
+    let savedTask: TaskOut | null
     if (isEdit.value) {
-      const { data } = await taskApi.update(props.taskUuid!, payload)
-      savedTask = data
+      await taskStore.updateTask(props.taskUuid!, payload)
+      savedTask = taskStore.tasks.find((t) => t.uuid === props.taskUuid) ?? null
     } else {
-      const { data } = await taskApi.create(payload)
-      savedTask = data
+      savedTask = await taskStore.createTask(payload)
     }
 
-    // 检查项并行保存
-    if (savedTask.uuid) {
-      const ops = checklist.value.map(item => {
+    // 检查项：本地优先 —— 新增/更新各写一条 checklistItems op
+    if (savedTask?.uuid) {
+      for (const item of checklist.value) {
         if (item._new && item.title.trim()) {
-          return taskApi.createChecklistItem(savedTask.uuid, { title: item.title.trim() }).catch(() => {})
+          await taskStore.addChecklistItem(savedTask.uuid, item.title.trim())
         } else if (!item._new) {
-          return taskApi.updateChecklistItem(savedTask.uuid, item.uuid, {
+          await taskStore.updateChecklistItem(item.uuid, {
             title: item.title,
             completed: item.completed,
-          }).catch(() => {})
+          })
         }
-        return Promise.resolve()
-      })
-      await Promise.all(ops)
+      }
     }
 
     toast.success(isEdit.value ? '已更新' : '已创建')
     emit('close')
-    // 乐观更新 store — 同步 checklistItems + 计数，保证卡片即时刷新
-    if (savedTask.uuid) {
-      const currentChecklist = checklist.value
-        .filter(c => c.title.trim())
-        .map(c => ({ uuid: c.uuid, title: c.title.trim(), completed: c.completed, sortOrder: 0 }))
-      ;(savedTask as any).checklistItems = currentChecklist
-      ;(savedTask as any).checklistTotal = currentChecklist.length
-      ;(savedTask as any).checklistCompleted = currentChecklist.filter(c => c.completed).length
-
-      const idx = taskStore.serverTasks.findIndex((t: any) => t.uuid === savedTask.uuid)
-      if (idx >= 0) {
-        taskStore.serverTasks[idx] = { ...taskStore.serverTasks[idx], ...savedTask } as any
-      } else {
-        taskStore.serverTasks.unshift(savedTask as any)
-      }
-    }
   } catch (e: any) {
     toast.error(e.message || '保存失败')
   } finally {

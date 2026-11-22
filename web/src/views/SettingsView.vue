@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { useTaskStore } from '@/stores/task'
 import { useNotification } from '@/composables/useNotification'
-import { tagApi, type TagOut } from '@/api/tags'
+import { type TagOut } from '@/api/tags'
 import { useToast } from '@/composables/useToast'
 import TagChip from '@/components/common/TagChip.vue'
 
@@ -14,10 +14,10 @@ const auth = useAuthStore()
 const ui = useUiStore()
 const taskStore = useTaskStore()
 const toast = useToast()
-const notif = useNotification(() => taskStore.serverTasks)
+const notif = useNotification(() => taskStore.tasks)
 
-// ── 标签 ──
-const tags = ref<TagOut[]>([])
+// ── 标签（本地优先：标签数据在 Dexie，store 负责刷新）──
+const tags = computed<TagOut[]>(() => taskStore.tags)
 const tagsLoading = ref(false)
 const tagDialogVisible = ref(false)
 const editingTag = ref<TagOut | null>(null)
@@ -33,8 +33,7 @@ const presetColors = [
 async function fetchTags() {
   tagsLoading.value = true
   try {
-    const { data } = await tagApi.list()
-    tags.value = data?.items ?? []
+    await taskStore.refreshFromLocal()
   } catch (e: any) {
     toast.error(e.message || '加载标签失败')
   } finally { tagsLoading.value = false }
@@ -62,16 +61,13 @@ async function saveTag() {
   tagSaving.value = true
   try {
     if (editingTag.value) {
-      await tagApi.update(editingTag.value.uuid, {
+      await taskStore.updateTag(editingTag.value.uuid, {
         name: tagFormName.value.trim(),
         color: tagFormColor.value,
       })
       toast.success('标签已更新')
     } else {
-      await tagApi.create({
-        name: tagFormName.value.trim(),
-        color: tagFormColor.value,
-      })
+      await taskStore.createTag(tagFormName.value.trim(), tagFormColor.value)
       toast.success('标签已创建')
     }
     tagDialogVisible.value = false
@@ -84,7 +80,7 @@ async function saveTag() {
 async function deleteTag(tag: TagOut) {
   if (!confirm(`删除标签「${tag.name}」？`)) return
   try {
-    await tagApi.delete(tag.uuid)
+    await taskStore.deleteTag(tag.uuid)
     toast.success('已删除')
     fetchTags()
   } catch (e: any) {
