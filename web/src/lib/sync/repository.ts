@@ -118,6 +118,11 @@ export async function getAllTags(): Promise<LocalTag[]> {
   return db.tags.toArray()
 }
 
+/** 读取单个标签 */
+export async function getTag(uuid: string): Promise<LocalTag | undefined> {
+  return db.tags.get(uuid)
+}
+
 export async function putTag(tag: Partial<LocalTag> & { uuid: string }): Promise<LocalTag> {
   const now = nowISO()
   const existing = await db.tags.get(tag.uuid)
@@ -200,6 +205,19 @@ export async function getChecklistItems(taskUuid: string): Promise<LocalChecklis
   return db.checklistItems.where('taskUuid').equals(taskUuid).sortBy('sortOrder')
 }
 
+/** 读取单个检查项 */
+export async function getChecklistItem(uuid: string): Promise<LocalChecklistItem | undefined> {
+  return db.checklistItems.get(uuid)
+}
+
+/** 读取单条任务-标签关联（复合主键） */
+export async function getTaskTag(
+  taskUuid: string,
+  tagUuid: string,
+): Promise<LocalTaskTag | undefined> {
+  return db.taskTags.get([taskUuid, tagUuid])
+}
+
 export async function putChecklistItem(item: Partial<LocalChecklistItem> & { uuid: string }): Promise<LocalChecklistItem> {
   const now = nowISO()
   const existing = await db.checklistItems.get(item.uuid)
@@ -253,13 +271,19 @@ export async function overwriteChecklistFromServer(record: Record<string, unknow
 // PendingOps 队列
 // =============================================================================
 
-/** 入队一个 op（去重：同 entity+entityUuid 已有 pending op 时替换 payload） */
+/** 入队一个 op（去重：同 entity+entityUuid 已有 pending op 时替换 payload）
+ *
+ * options.force —— 冲突已由用户裁决为"保留本地"时置 true，推送时服务端会跳过版本冲突检测。
+ * 不带这个标记的话，重新入队的 op 每次推送都会再次被判冲突，形成死循环。
+ */
 export async function enqueueOp(
   entityType: EntityType,
   opType: 'upsert' | 'delete',
   entityUuid: string,
   payload: Record<string, unknown>,
+  options?: { force?: boolean },
 ): Promise<PendingOpRecord> {
+  const force = options?.force ?? false
   // 查找是否已有同实体的 pending op（schema 仅声明单字段索引，用 filter 实现）
   const existing = await db.pendingOps
     .where('entityType')
@@ -284,6 +308,7 @@ export async function enqueueOp(
       createdAt: nowISO(),
       status: 'pending',
       errorMessage: undefined,
+      force: force || existing.force,
     }
     await db.pendingOps.put(updated)
     return updated
@@ -297,6 +322,7 @@ export async function enqueueOp(
     payload,
     createdAt: nowISO(),
     status: 'pending',
+    ...(force ? { force: true } : {}),
   }
   await db.pendingOps.add(record)
   return record

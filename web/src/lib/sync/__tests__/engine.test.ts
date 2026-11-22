@@ -32,6 +32,9 @@ const mockGetPendingOps = vi.fn()
 const mockUpdateOpStatus = vi.fn()
 const mockDeleteOp = vi.fn()
 const mockGetTask = vi.fn()
+const mockGetTag = vi.fn()
+const mockGetChecklistItem = vi.fn()
+const mockGetTaskTag = vi.fn()
 const mockOverwriteFromServer = vi.fn()
 const mockOverwriteTagFromServer = vi.fn()
 const mockOverwriteChecklistFromServer = vi.fn()
@@ -48,6 +51,9 @@ vi.mock('../repository', () => ({
   updateOpStatus: (...args: unknown[]) => mockUpdateOpStatus(...args),
   deleteOp: (...args: unknown[]) => mockDeleteOp(...args),
   getTask: (...args: unknown[]) => mockGetTask(...args),
+  getTag: (...args: unknown[]) => mockGetTag(...args),
+  getChecklistItem: (...args: unknown[]) => mockGetChecklistItem(...args),
+  getTaskTag: (...args: unknown[]) => mockGetTaskTag(...args),
   overwriteFromServer: (...args: unknown[]) => mockOverwriteFromServer(...args),
   overwriteTagFromServer: (...args: unknown[]) => mockOverwriteTagFromServer(...args),
   overwriteChecklistFromServer: (...args: unknown[]) => mockOverwriteChecklistFromServer(...args),
@@ -336,6 +342,9 @@ describe('resolveConflict', () => {
       'upsert',
       'u1',
       expect.objectContaining({ title: 'freshest-local' }),
+      // force=true：用户已裁决"保留本地"，服务端据此跳过冲突检测，
+      // 否则这个 op 每次推送都会被再次判冲突
+      { force: true },
     )
     // 关键断言：传入的 payload 不是 stale-snapshot
     const call = mockEnqueueOp.mock.calls[0]

@@ -140,7 +140,15 @@ async def push_sync(body: SyncPushRequest, current: RequiredUser, db: DbSession)
         savepoint = None
         try:
             savepoint = await db.begin_nested()
-            op_result = await _apply_op(db, svc, user_uuid, entity, action, payload)
+            op_result = await _apply_op(
+                db,
+                svc,
+                user_uuid,
+                entity,
+                action,
+                payload,
+                force=bool(op.get("force", False)),
+            )
             await savepoint.commit()
             op_result["opId"] = op_id
             op_result["status"] = op_result.get("status", "applied")
@@ -214,8 +222,13 @@ async def _apply_op(
     entity: str,
     action: str,
     payload: dict,
+    force: bool = False,
 ) -> dict:
-    """根据实体类型应用单个同步操作。"""
+    """根据实体类型应用单个同步操作。
+
+    force=True 表示用户已在冲突弹窗里裁决为"保留本地"，此时跳过版本冲突检测、
+    直接以本地数据为准 —— 否则用户裁决完重新推送的 op 会再次被判冲突，形成死循环。
+    """
     if entity == "task":
         if action == "upsert":
             uuid = payload.get("uuid") or ""
@@ -240,9 +253,13 @@ async def _apply_op(
                         code="TASK_DELETED",
                     )
 
-                # 冲突检测
+                # 冲突检测（force=true 时跳过：用户已裁决以本地为准）
                 client_updated = _parse_iso(payload.get("updatedAt"))
-                if client_updated is not None and existing.updated_at is not None:
+                if (
+                    not force
+                    and client_updated is not None
+                    and existing.updated_at is not None
+                ):
                     server_updated = existing.updated_at
                     if server_updated.tzinfo is None:
                         server_updated = server_updated.replace(tzinfo=timezone.utc)

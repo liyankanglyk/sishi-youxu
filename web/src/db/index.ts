@@ -71,6 +71,8 @@ export interface PendingOp {
   status: 'pending' | 'syncing' | 'conflict' | 'failed'
   errorMessage?: string
   resolution?: 'local' | 'remote'
+  /** 冲突已由用户裁决为"保留本地"时置 true：推送时服务端跳过版本冲突检测 */
+  force?: boolean
 }
 
 export interface SyncMetaEntry {

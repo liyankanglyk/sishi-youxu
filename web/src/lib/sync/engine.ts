@@ -18,6 +18,7 @@
 import { reactive, computed } from 'vue'
 import { syncApi, type StatusResponse } from '@/api/sync'
 import type {
+  ConflictInfo,
   EntityType,
   PendingOpRecord,
   PullResponse,
@@ -170,11 +171,14 @@ class SyncEngine {
       // ⚠️ 关键：重读 db 而不是用 conflict.local（可能是过期快照）
       const latest = await this.readLocalEntity(conflict.entityType, conflict.entityUuid)
       if (latest) {
+        // force=true：用户已裁决为"保留本地"，服务端必须跳过版本冲突检测，
+        // 否则重新入队的 op 每次推送都会被再次判冲突，形成死循环
         await repo.enqueueOp(
           conflict.entityType,
           'upsert',
           conflict.entityUuid,
           latest,
+          { force: true },
         )
       }
     }
@@ -188,6 +192,10 @@ class SyncEngine {
   async start(): Promise<void> {
     if (this.started) return
     this.started = true
+
+    // 复位上一次会话遗留的 syncing op：页面被关闭或崩溃时 op 会停在 syncing，
+    // 而取队列只认 pending|failed，这些 op 就永远推不出去
+    await this.recoverStuckOps()
 
     // 初始状态
     await this.refreshPendingCount()
@@ -271,21 +279,34 @@ class SyncEngine {
   // 内部：push
   // ===========================================================================
 
+  /** 把停在 syncing 的 op 复位成 pending（崩溃/刷新后恢复） */
+  private async recoverStuckOps(): Promise<void> {
+    const ops = await repo.getPendingOps()
+    for (const op of ops) {
+      if (op.status === 'syncing' && op.id != null) {
+        await repo.updateOpStatus(op.id, 'pending')
+      }
+    }
+  }
+
   private async pushAll(): Promise<void> {
     let ops = await repo.getPendingOps()
     ops = ops.filter((o) => o.status === 'pending' || o.status === 'failed')
     if (ops.length === 0) return
 
-    // 标记为 syncing
-    for (const op of ops) {
-      if (op.id != null) {
-        await repo.updateOpStatus(op.id, 'syncing')
-      }
-    }
-
     // 分批（按 PUSH_BATCH_LIMIT 切）
     for (let i = 0; i < ops.length; i += PUSH_BATCH_LIMIT) {
       const batch = ops.slice(i, i + PUSH_BATCH_LIMIT)
+
+      // 只把当前批标记为 syncing。
+      // 早先把全部 op 一次性标成 syncing，某批失败后剩余批次永远停在 syncing：
+      // 取队列只认 pending|failed、重启也没有复位逻辑，这些 op 就再也不会被推送。
+      for (const op of batch) {
+        if (op.id != null) {
+          await repo.updateOpStatus(op.id, 'syncing')
+        }
+      }
+
       try {
         const resp = await syncApi.push(
           batch.map((o) => ({
@@ -294,11 +315,13 @@ class SyncEngine {
             action: o.opType,
             payload: o.payload,
             clientTs: new Date(o.createdAt).getTime(),
+            // 用户已裁决为"保留本地"的 op：服务端跳过版本冲突检测
+            force: o.force === true,
           })),
         )
         await this.handlePushResults(batch, resp.data.results ?? [])
       } catch (e: any) {
-        // 整批失败：标记回 failed
+        // 整批失败：标记回 failed（失败批次可重试；未开始的批次保持 pending）
         for (const op of batch) {
           if (op.id != null) {
             await repo.updateOpStatus(op.id, 'failed', e?.message ?? String(e))
@@ -340,7 +363,7 @@ class SyncEngine {
               : op.entityType === 'checklistItems'
                 ? (remote?.title as string) ?? '检查项'
                 : op.entityUuid
-        this.state.conflicts.push({
+        this.pushConflict({
           opId: op.opId,
           entityType: op.entityType,
           entityUuid: op.entityUuid,
@@ -433,7 +456,7 @@ class SyncEngine {
                 ? (record.title as string) ?? '检查项'
                 : uuid
         // 用服务端 opId 作为冲突标识
-        this.state.conflicts.push({
+        this.pushConflict({
           opId: `pull-${uuid}-${Date.now()}`,
           entityType,
           entityUuid: uuid,
@@ -464,6 +487,12 @@ class SyncEngine {
     }
   }
 
+  /**
+   * 读本地实体，用于冲突判定与"保留本地"时取最新值。
+   * 必须覆盖全部实体类型：之前只支持 task，tag / checklist 的 pending 保护形同虚设
+   * （服务端会直接覆盖本地未同步的修改），选"保留本地"时 latest 为 null 也就不重新入队，
+   * 本地改动直接丢失。taskTag 的 entityUuid 约定为 `${taskUuid}:${tagUuid}`。
+   */
   private async readLocalEntity(
     entityType: EntityType,
     uuid: string,
@@ -472,7 +501,30 @@ class SyncEngine {
       const t = await repo.getTask(uuid)
       return t ? ({ ...t } as Record<string, unknown>) : null
     }
+    if (entityType === 'tag') {
+      const t = await repo.getTag(uuid)
+      return t ? ({ ...t } as Record<string, unknown>) : null
+    }
+    if (entityType === 'checklistItems') {
+      const c = await repo.getChecklistItem(uuid)
+      return c ? ({ ...c } as Record<string, unknown>) : null
+    }
+    if (entityType === 'taskTag') {
+      const [taskUuid, tagUuid] = uuid.split(':')
+      if (!taskUuid || !tagUuid) return null
+      const link = await repo.getTaskTag(taskUuid, tagUuid)
+      return link ? ({ ...link } as Record<string, unknown>) : null
+    }
     return null
+  }
+
+  /** 冲突队列按实体去重：同一实体被反复 pull 时不会堆出多条同源冲突 */
+  private pushConflict(conflict: ConflictInfo): void {
+    const idx = this.state.conflicts.findIndex(
+      (c) => c.entityType === conflict.entityType && c.entityUuid === conflict.entityUuid,
+    )
+    if (idx >= 0) this.state.conflicts.splice(idx, 1)
+    this.state.conflicts.push(conflict)
   }
 
   private async refreshPendingCount(): Promise<void> {

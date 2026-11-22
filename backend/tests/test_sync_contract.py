@@ -100,6 +100,16 @@ def test_payload_str_empty_when_absent():
     assert _payload_str({"taskUuid": ""}, "taskUuid", "task_uuid") == ""
 
 
+def test_sync_op_schema_accepts_force_flag():
+    """冲突裁决为「保留本地」后重新推送的 op 必须能带 force 标记。"""
+    from src.apps.user.schemas.v1.sync import SyncOpItem
+
+    forced = SyncOpItem(opId="op1", entity="task", action="upsert", payload={}, force=True)
+    assert forced.force is True
+    normal = SyncOpItem(opId="op2", entity="task", action="upsert", payload={})
+    assert normal.force is False
+
+
 @pytest.mark.parametrize(
     "payload",
     [

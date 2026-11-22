@@ -15,6 +15,10 @@ class SyncOpItem(BaseModel):
     action: str = Field(..., description="操作类型：upsert / delete")
     payload: dict = Field(..., description="完整实体记录")
     clientTs: Optional[int] = Field(default=None, description="客户端操作时间戳（毫秒）")
+    force: bool = Field(
+        default=False,
+        description="冲突已由用户裁决为『保留本地』时置 true：跳过版本冲突检测，直接以本地为准",
+    )
 
 
 class SyncPushRequest(BaseModel):

@@ -216,7 +216,7 @@ Pinia store 命名 `useXxxStore`，结构：`ref` 状态 + `computed` 派生 + `
 - **画布网格**：level 取 −2…2（每轴 5 档），步长 = 画布宽的 20%；卡片宽度用容器查询 `min(220px, 20cqw − 34px)` 跟随步长——卡片比格点宽就会压到相邻格点上。改档位必须同步改 `QuadrantCanvas.getGridStepPct()` 与 `TaskCard` 的 `cqw` 规则。
 - **数据加载**：`stores/task.ts` 的 `fetchFromServer` 按 `pageSize=100` 翻页拉全量；后端 pageSize 上限是 100，不传参数只会拿到前 20 条（`meta.hasMore` 必须处理）。
 - **拖拽**：卡片中心 = 光标位置 − 抓取偏移，直接映射成画布百分比；不要在拖拽坐标上再套 level→位置的 margin/range 映射，否则卡片会被"吸向"画布中心（边缘最大偏差可达 margin）。
-- **待接线**：`syncEngine.start()` 仍无调用点，`stores/task.ts` 仍是纯 REST 驱动（Dexie 只在登录时写了一条 authSession）。接线前先修 `web/src/lib/sync/engine.ts` 的三处：批次失败后 `syncing` 态卡死、`readLocalEntity` 只支持 task（tag/checklist 的冲突保护失效）、`resolveConflict('local')` 缺"本地强制"标记会反复冲突。
+- **待接线**：`syncEngine.start()` 仍无调用点，`stores/task.ts` 仍是纯 REST 驱动（Dexie 只在登录时写了一条 authSession）。引擎侧的三处致命缺陷已修（批次失败后 `syncing` 卡死、`readLocalEntity` 只支持 task、`resolveConflict('local')` 反复冲突 —— 裁决后重新入队的 op 带 `force: true`，服务端据此跳过冲突检测）。接线时还要补：store 读写改走 Dexie、登出调 `clearLocal()`、挂载 `SyncStatusBadge` 与 `ConflictDialog`。
 
 ---
 
